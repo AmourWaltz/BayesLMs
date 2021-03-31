@@ -1,4 +1,4 @@
-# BayesianLM
+# BayesLMs
 
 Configuration: 
 
@@ -12,6 +12,18 @@ for LSTM LMs, change L_gauss_pos to 1-7 for different GP activation positions in
 | ----------- | -------- | ---------- | ----------- | --------- | ----------- | ----------- | ------------- | ------ |
 | L_gauss_pos | 0        | 1          | 2           | 3         | 4           | 5           | 6             | 7      |
 
+for Transformer LMs, change T_gauss_pos to 1 for GP activation position in 1-layer FFN.
+
+|             | baseline | FFN        |
+| ----------- | -------- | ---------- |
+| T_gauss_pos | 0        | 1          |
+
+Best settings for training Bayesian LSTM and Transformer language models, which is similar for GPact LMs.
+
+|             | embedding_dim | hidden_dim | nlayers | learning_rate | dropout | pretrain | Bayesian_pos                             |
+| ----------- | ------------- | ---------- | ------- | ------------- | ------- | -------- | ---------------------------------------- |
+| LSTM        | 1024          | 1024       | 2       | 5             | 0.2     | False    | cell gate (L_bayes_pos=3, L_gauss_pos=3) |
+| Transformer | 512           | 4096       | 6       | 0.1           | 0.2     | True     | FFN (T_bayes_pos=FFN, T_gauss_pos=3)     |
 
 Ex:
 
