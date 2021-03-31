@@ -16,7 +16,7 @@ for LSTM LMs, change L_gauss_pos to 1-7 for different GP activation positions in
 Ex:
 
 ```
- bash run_nnlm_ami_lstm_baseline.sh --L_gauss_pos 1
+ bash run_nnlm_ami_lstm_baseline.sh --L_gauss_pos 3
 ```
 
 Noticed to replace oringinal by lmrescore_nbest_pytorchnn_cuda.sh.
