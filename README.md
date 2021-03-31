@@ -6,11 +6,11 @@ for all langauge models,
 
 set uncertainty = Gaussian;
 
-for LSTM LMs, change L_gauss_pos to 1-7 for different GP activation positions in 1-layer LSTM.
+for LSTM LMs, change L_gauss_pos to 1-7 for different GP activation positions in 1-layer LSTM. Set deterministic=True for fine-tuning pretrained model.
 
-|             | baseline | input_gate | forget_gate | cell_gate | output_gate | cell_states | hidden_states | inputs |
-| ----------- | -------- | ---------- | ----------- | --------- | ----------- | ----------- | ------------- | ------ |
-| L_gauss_pos | 0        | 1          | 2           | 3         | 4           | 5           | 6             | 7      |
+|             | baseline | input_gate | forget_gate | cell_gate | output_gate | cell_states | hidden_states | inputs | cell_gate (deterministic=True) |
+| ----------- | -------- | ---------- | ----------- | --------- | ----------- | ----------- | ------------- | ------ | ------------------------------ |
+| L_gauss_pos | 0        | 1          | 2           | 3         | 4           | 5           | 6             | 7      | 8                              |
 
 for Transformer LMs, change T_gauss_pos to 1 for GP activation position in 1-layer FFN.
 
@@ -20,15 +20,19 @@ for Transformer LMs, change T_gauss_pos to 1 for GP activation position in 1-lay
 
 Best settings for training Bayesian LSTM and Transformer language models, which is similar for GPact LMs.
 
-|             | embedding_dim | hidden_dim | nlayers | learning_rate | dropout | pretrain | Bayesian_pos                             |
-| ----------- | ------------- | ---------- | ------- | ------------- | ------- | -------- | ---------------------------------------- |
-| LSTM        | 1024          | 1024       | 2       | 5             | 0.2     | False    | cell gate (L_bayes_pos=3, L_gauss_pos=3) |
-| Transformer | 512           | 4096       | 6       | 0.1           | 0.2     | True     | FFN (T_bayes_pos=FFN, T_gauss_pos=3)     |
+|             | embedding_dim | hidden_dim | nlayers | learning_rate    | dropout | pretrain | Bayesian_pos                             |
+| ----------- | ------------- | ---------- | ------- | ---------------- | ------- | -------- | ---------------------------------------- |
+| LSTM        | 1024          | 1024       | 2       | 5 (fine-tune=0.1)| 0.2     | False    | cell gate (L_bayes_pos=3, L_gauss_pos=3) |
+| Transformer | 512           | 4096       | 6       | 0.1              | 0.2     | True     | FFN (T_bayes_pos=FFN, T_gauss_pos=3)     |
 
-Ex:
+Training steps for GPact LSTM:
 
+1. Pretrain the no variance LSTM (deterministic=True and no lgstd, not the baseline LSTM, only for GPact on cell gate):
 ```
- bash run_nnlm_ami_lstm_baseline.sh --L_gauss_pos 3
+ bash run_nnlm_ami_lstm_baseline.sh --L_gauss_pos 8 --mark no # Pretrain the LSTM without lgstd. Parameter mark is to annotate the model with any value and know from other models if there's any change of the code.
+ cp path/pretrained_model.pt steps/pytorchnn/prior/lstm/ # copy the pretrained model to specific path.
+ bash run_nnlm_ami_lstm_baseline.sh --L_gauss_pos 3 --learning_rate 0.1 --prior True --mark no # Fine-tune the pretrained model
+ 
 ```
 
 Noticed to replace oringinal by lmrescore_nbest_pytorchnn_cuda.sh.
