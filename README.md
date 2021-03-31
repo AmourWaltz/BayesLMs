@@ -27,12 +27,19 @@ Best settings for training Bayesian LSTM and Transformer language models, which 
 
 Training steps for GPact LSTM:
 
-Pretrain a no variance LSTM (deterministic=True and no lgstd, not the baseline LSTM, only for GPact on cell gate) and then fine-tune it, Parameter mark is to annotate the model with any value and know from other models if there's any change of the code.:
+1.Pretrain a no variance LSTM (deterministic=True and no lgstd, not the baseline LSTM, only for GPact on cell gate), Parameter mark is to annotate the model with any value and know from other models if there's any change of the code.:
 ```
- bash run_nnlm_ami_lstm_baseline.sh --L_gauss_pos 8 --mark no # Pretrain the LSTM without lgstd. 
- cp path/pretrained_model.pt steps/pytorchnn/prior/lstm/ # copy the pretrained model to specific path.
- bash run_nnlm_ami_lstm_baseline.sh --L_gauss_pos 3 --learning_rate 0.1 --prior True --mark no # Fine-tune the pretrained model
- 
+ bash run_nnlm_ami_lstm_baseline.sh --L_gauss_pos 8 --mark no
+```
+
+2.Copy the pretrained model to specific path:
+```
+ cp path/pretrained_model.pt steps/pytorchnn/prior/lstm/
+```
+
+3.Fine-tune the pretrained model:
+```
+ bash run_nnlm_ami_lstm_baseline.sh --L_gauss_pos 3 --learning_rate 0.1 --prior True --mark no
 ```
 
 Training steps for GPact Transformer:
@@ -40,7 +47,6 @@ Training steps for GPact Transformer:
 Do GPact learning directly on 1-layer feed-forward network:
 ```
  bash run_nnlm_ami_tm_baseline.sh --hidden_dim 4096 --T_gauss_pos 1 --mark no
- 
 ```
 
 Lattice rescore:
@@ -56,6 +62,5 @@ Replace other .sh files in specific paths as the number of nj is set to 5 in res
 ```
  local/score_asclite.sh
  bash data/pytorchnn_ami/rescore/exp/mdm8/tdnn_with_fisher/decode_dev/cat_lat.sh
-
 ```
 
