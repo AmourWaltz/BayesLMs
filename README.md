@@ -27,13 +27,23 @@ Best settings for training Bayesian LSTM and Transformer language models, which 
 
 Training steps for GPact LSTM:
 
-1. Pretrain the no variance LSTM (deterministic=True and no lgstd, not the baseline LSTM, only for GPact on cell gate):
+Pretrain a no variance LSTM (deterministic=True and no lgstd, not the baseline LSTM, only for GPact on cell gate) and then fine-tune it, Parameter mark is to annotate the model with any value and know from other models if there's any change of the code.:
 ```
- bash run_nnlm_ami_lstm_baseline.sh --L_gauss_pos 8 --mark no # Pretrain the LSTM without lgstd. Parameter mark is to annotate the model with any value and know from other models if there's any change of the code.
+ bash run_nnlm_ami_lstm_baseline.sh --L_gauss_pos 8 --mark no # Pretrain the LSTM without lgstd. 
  cp path/pretrained_model.pt steps/pytorchnn/prior/lstm/ # copy the pretrained model to specific path.
  bash run_nnlm_ami_lstm_baseline.sh --L_gauss_pos 3 --learning_rate 0.1 --prior True --mark no # Fine-tune the pretrained model
  
 ```
+
+Training steps for GPact Transformer:
+
+Do GPact learning directly on 1-layer feed-forward network:
+```
+ bash run_nnlm_ami_tm_baseline.sh --hidden_dim 4096 --T_gauss_pos 1 --mark no
+ 
+```
+
+Lattice rescore:
 
 Noticed to replace oringinal by lmrescore_nbest_pytorchnn_cuda.sh.
 
