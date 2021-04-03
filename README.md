@@ -6,11 +6,19 @@ for all langauge models,
 
 set uncertainty = Gaussian;
 
-for LSTM LMs, change L_gauss_pos to 1-7 for different GP activation positions in 1-layer LSTM. Set deterministic=True for fine-tuning pretrained model.
+for LSTM LMs, change L_gauss_pos[0] (gp_type) to 0-4 for different GP activation positions in 1-layer LSTM.
 
-|             | baseline | input_gate | forget_gate | cell_gate | output_gate | cell_states | hidden_states | inputs | cell_gate (deterministic=True) |
-| ----------- | -------- | ---------- | ----------- | --------- | ----------- | ----------- | ------------- | ------ | ------------------------------ |
-| L_gauss_pos | 0        | 1          | 2           | 3         | 4           | 5           | 6             | 7      | 8                              |
+|                | baseline | input_gate | forget_gate | cell_gate | output_gate |
+| -------------- | -------- | ---------- | ----------- | --------- | ----------- |
+| L_gauss_pos[0] | 0        | 1          | 2           | 3         | 4           |
+
+change L_gauss_pos[1] (gpnn_type) to 0-3 for different Bayesian and GPact uncertainty ("coef" and "weight" mean using Bayesian method on coefficient and weight parameters respectively).
+
+| coef | weight | L_gauss_pos[1] |
+| ---- | ------ | -------------- |
+| &radic  | 1      | 2              |
+| 
+
 
 for Transformer LMs, change T_gauss_pos to 1 for GP activation position in 1-layer FFN.
 
