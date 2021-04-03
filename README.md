@@ -16,7 +16,7 @@ change L_gauss_pos[1] (gpnn_type) to 0-3 for different Bayesian and GPact uncert
 
 | coef | weight | L_gauss_pos[1] |
 | ---- | ------ | -------------- |
-| $& radic$ | 1      | 2              |
+| $&radic;$ | 1      | 2              |
 | 
 
 
