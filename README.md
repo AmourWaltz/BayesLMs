@@ -25,10 +25,10 @@ for Transformer LMs, change T_gauss_pos to 0-3 for GPact types in 1-layer FFN.
 
 Best settings for training Bayesian LSTM and Transformer language models, which is similar for GPact LMs.
 
-|             | embedding_dim | hidden_dim | nlayers | learning_rate    | dropout | pretrain | Bayesian_pos                              |
-| ----------- | ------------- | ---------- | ------- | ---------------- | ------- | -------- | ----------------------------------------- |
-| LSTM        | 1024          | 1024       | 2       | 5 (fine-tune=0.1)| 0.2     | False    | cell gate (L_bayes_pos=3, L_gauss_pos=31) |
-| Transformer | 512           | 4096       | 6       | 0.1              | 0.2     | True     | FFN (T_bayes_pos=FFN, T_gauss_pos=3)      |
+|             | embedding_dim | hidden_dim | nlayers | learning_rate         | dropout | pretrain | Bayesian_pos                              |
+| ----------- | ------------- | ---------- | ------- | --------------------- | ------- | -------- | ----------------------------------------- |
+| LSTM        | 1024          | 1024       | 2       | 5 (fine-tune=0.1)     | 0.2     | False    | cell gate (L_bayes_pos=3, L_gauss_pos=31) |
+| Transformer | 512           | 4096       | 6       | 0.1 (fine-tune=0.001) | 0.2     | True     | FFN (T_bayes_pos=FFN, T_gauss_pos=3)      |
 
 Training steps for GPact LSTM:
 
@@ -49,9 +49,19 @@ Training steps for GPact LSTM:
 
 Training steps for GPact Transformer:
 
-Do GPact learning directly on 1-layer feed-forward network:
+1. Pretrain a no variance Transformer model:
 ```
  bash run_nnlm_ami_tm_baseline.sh --hidden_dim 4096 --T_gauss_pos 1 --mark no
+```
+
+2.Copy the pretrained model to specific path:
+```
+ cp path/pretrained_model.pt steps/pytorchnn/prior/transformer/
+```
+
+3.Fine-tune the pretrained model:
+```
+ bash run_nnlm_ami_tm_baseline.sh --T_gauss_pos 1 --learning_rate 0.001 --prior True --mark no
 ```
 
 Lattice rescore:
