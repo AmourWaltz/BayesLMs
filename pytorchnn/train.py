@@ -45,11 +45,13 @@ parser.add_argument('--T_bayes_pos', type=str, default='none',
                     help='Transformer Bayesian type: [None | FFN | MHA | EMB]')
 parser.add_argument('--L_bayes_pos', type=int, default=0,
                     help='LSTM Bayesian position: [None | 1: input_gate | 2: forget_gate | 3: cell_gate | 4: output_gate]')
-parser.add_argument('--L_gauss_pos', type=int, default=0,
-                    help='LSTM Gaussian position: [0: None | 1: input_gate | 2: forget_gate | 3: cell_gate | 4: output_gate'
-                         ' | 5: cell | 6: hidden | 7: inputs]')
-parser.add_argument('--T_gauss_pos', type=int, default=1,
-                    help='Transformer Gaussian position: [0: None | 1: FFN]')
+parser.add_argument('--L_gauss_pos', type=str, default='00',
+                    help='LSTM Gaussian position: [str[0] - 0: None | 1: input_gate | 2: forget_gate | 3: cell_gate | 4: output_gate'
+                         ' str[1] - 0: d-weight, d-coef | 1: nd-weight, d-coef | 2: d-weight, nd-coef '
+                         '| 3: nd-weight, nd-coef')
+parser.add_argument('--T_gauss_pos', type=int, default=3,
+                    help='Transformer Gaussian type: [0: d-weight, d-coef | 1: nd-weight, d-coef | 2: d-weight, nd-coef '
+                         '| 3: nd-weight, nd-coef]')
 
 # Training options
 parser.add_argument('--lr', type=float, default=0.1,
@@ -200,7 +202,7 @@ if args.prior == "True":
     #print(prior.state_dict().keys())
     model_dict = model.state_dict()
     prior_dict =  {k: v for k, v in prior_dict.items() if k in model_dict}
-    print(model_dict['rnn.gpnn.act_coef'])
+    #print(model_dict['rnn.gpnn.act_coef'])
 
     #for k, v in prior_dict.items():
     #    if k in model_dict:
@@ -273,7 +275,17 @@ def train():
                     pass
                 pass
             pass
-        pass
+        elif args.uncertainty == 'Gaussian':
+            if args.model == 'Transformer':
+                if 1 <= args.T_gauss_pos <= 3:
+                    kl_loss = model.transformerlayers[0].gpnn.kl_divergence() / len(train_data) * args.seq_len
+                    pass
+            elif args.model == 'LSTM':
+                if int(args.L_gauss_pos[0]) > 0 and int(args.L_gauss_pos[1]) > 0:
+                    kl_loss = model.rnn.rnn[0].gpnn.kl_divergence() / len(train_data) * args.seq_len
+                    pass
+                pass
+            pass
 
         loss = kl_loss + mle_loss
         loss.backward()
@@ -345,6 +357,8 @@ try:
             lr /= 2.
             optimizer = optim.SGD(model.parameters(), lr=lr, momentum=0.9,
                                   weight_decay=1e-5)
+            with open(args.save, 'rb') as f:
+                model.load_state_dict(torch.load(f, map_location=lambda storage, loc: storage))
             counter += 1
 
         # Early stopping

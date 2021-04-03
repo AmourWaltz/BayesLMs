@@ -1454,6 +1454,7 @@ class GPNN(nn.Module):
         self.weights_mean = nn.Parameter(torch.Tensor(output_size, input_size))
         self.bias_mean = nn.Parameter(torch.Tensor(output_size))
         self.coef_mean = nn.Parameter(torch.empty(len(act_set), self.output_size))
+        self.softmax = nn.Softmax(dim=0)
 
         # Ugly
         if self.gpnn_type == 1:
@@ -1531,8 +1532,11 @@ class GPNN(nn.Module):
 
         output = F.linear(inputs, weights, bias)
         #output = hx
+        coef = self.softmax(coef)
+
         act_outputs = []
         for i, act in enumerate(self.act_set):
+#            act_outputs.append(getattr(F, act)(output))
             act_outputs.append(getattr(F, act)(output) * coef[i, :])
         output = torch.sum(torch.stack(act_outputs), 0)
 
