@@ -12,21 +12,16 @@ for LSTM LMs, change L_gauss_pos[0] (gp_type) to 0-4 for different GP activation
 | -------------- | -------- | ---------- | ----------- | --------- | ----------- |
 | L_gauss_pos[0] | 0        | 1          | 2           | 3         | 4           |
 
-change L_gauss_pos[1] (gpnn_type) to 0-3 for different Bayesian and GPact uncertainty ("coef" and "weight" mean using Bayesian method on coefficient and weight parameters respectively).
+change L_gauss_pos[1] (gpnn_type) to 0-3 for different Bayesian and GPact uncertainty types ("coef" and "weight" mean using Bayesian method on coefficient and weight parameters respectively).
 
-| coef    | weight  | L_gauss_pos[1] |
-| ------- | ------- | -------------- |
-| &times; | &times; | 0              |
-| &radic; | &times; | 1              |
-| &times; | &radic; | 2              |
-| &radic; | &radic; | 3              |
+for Transformer LMs, change T_gauss_pos to 0-3 for GPact types in 1-layer FFN.
 
-
-for Transformer LMs, change T_gauss_pos to 1 for GP activation position in 1-layer FFN.
-
-|             | baseline | FFN        |
-| ----------- | -------- | ---------- |
-| T_gauss_pos | 0        | 1          |
+| coef    | weight  | L_gauss_pos[1] && T_gauss_pos |
+| ------- | ------- | ----------------------------- |
+| &times; | &times; | 0                             |
+| &radic; | &times; | 1                             |
+| &times; | &radic; | 2                             |
+| &radic; | &radic; | 3                             |
 
 Best settings for training Bayesian LSTM and Transformer language models, which is similar for GPact LMs.
 
@@ -39,7 +34,7 @@ Training steps for GPact LSTM:
 
 1.Pretrain a no variance LSTM (deterministic=True and no lgstd, not the baseline LSTM, only for GPact on cell gate), Parameter mark is to annotate the model with any value and know from other models if there's any change of the code.:
 ```
- bash run_nnlm_ami_lstm_baseline.sh --L_gauss_pos 8 --mark no
+ bash run_nnlm_ami_lstm_baseline.sh --L_gauss_pos 10 --mark no
 ```
 
 2.Copy the pretrained model to specific path:
