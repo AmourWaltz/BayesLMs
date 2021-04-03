@@ -14,10 +14,12 @@ for LSTM LMs, change L_gauss_pos[0] (gp_type) to 0-4 for different GP activation
 
 change L_gauss_pos[1] (gpnn_type) to 0-3 for different Bayesian and GPact uncertainty ("coef" and "weight" mean using Bayesian method on coefficient and weight parameters respectively).
 
-| coef | weight | L_gauss_pos[1] |
-| ---- | ------ | -------------- |
-| $&radic;$ | 1      | 2              |
-| 
+| coef    | weight  | L_gauss_pos[1] |
+| ------- | ------- | -------------- |
+| &times; | &times; | 0              |
+| &radic; | &times; | 1              |
+| &times; | &radic; | 2              |
+| &radic; | &radic; | 3              |
 
 
 for Transformer LMs, change T_gauss_pos to 1 for GP activation position in 1-layer FFN.
