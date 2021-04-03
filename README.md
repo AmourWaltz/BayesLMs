@@ -32,7 +32,7 @@ Best settings for training Bayesian LSTM and Transformer language models, which 
 
 Training steps for GPact LSTM:
 
-1.Pretrain a no variance LSTM (deterministic=True and no lgstd, not the baseline LSTM, only for GPact on cell gate), Parameter mark is to annotate the model with any value and know from other models if there's any change of the code.:
+1.Pretrain a no variance LSTM (deterministic=True and no lgstd, not the baseline LSTM, only for GPact on cell gate), Parameter mark is to annotate the model with any value and know from other models if there's any change of the code:
 ```
  bash run_nnlm_ami_lstm_baseline.sh --L_gauss_pos 10 --mark no
 ```
