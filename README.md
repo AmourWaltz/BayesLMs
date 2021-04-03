@@ -25,10 +25,10 @@ for Transformer LMs, change T_gauss_pos to 0-3 for GPact types in 1-layer FFN.
 
 Best settings for training Bayesian LSTM and Transformer language models, which is similar for GPact LMs.
 
-|             | embedding_dim | hidden_dim | nlayers | learning_rate    | dropout | pretrain | Bayesian_pos                             |
-| ----------- | ------------- | ---------- | ------- | ---------------- | ------- | -------- | ---------------------------------------- |
-| LSTM        | 1024          | 1024       | 2       | 5 (fine-tune=0.1)| 0.2     | False    | cell gate (L_bayes_pos=3, L_gauss_pos=3) |
-| Transformer | 512           | 4096       | 6       | 0.1              | 0.2     | True     | FFN (T_bayes_pos=FFN, T_gauss_pos=3)     |
+|             | embedding_dim | hidden_dim | nlayers | learning_rate    | dropout | pretrain | Bayesian_pos                              |
+| ----------- | ------------- | ---------- | ------- | ---------------- | ------- | -------- | ----------------------------------------- |
+| LSTM        | 1024          | 1024       | 2       | 5 (fine-tune=0.1)| 0.2     | False    | cell gate (L_bayes_pos=3, L_gauss_pos=31) |
+| Transformer | 512           | 4096       | 6       | 0.1              | 0.2     | True     | FFN (T_bayes_pos=FFN, T_gauss_pos=3)      |
 
 Training steps for GPact LSTM:
 
