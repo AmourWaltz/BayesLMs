@@ -1386,7 +1386,7 @@ class GPLSTMCell(nn.Module):
         self.hidden_size = hidden_size
         self.gate_type = gate_type
         if self.gate_type != 0:
-           self.gpnn = GPNN(self.hidden_size+self.input_size, self.hidden_size, gpnn_type=gpnn_type)
+           self.gpnn = GPNN(self.hidden_size+self.input_size, self.hidden_size, act_set=['tanh', 'sigmoid', 'relu'], gpnn_type=gpnn_type)
         self.weights_ih = nn.Parameter(torch.Tensor(self.hidden_size*4, self.input_size))
         self.bias_ih = nn.Parameter(torch.Tensor(self.hidden_size*4))
         self.weights_hh = nn.Parameter(torch.Tensor(self.hidden_size*4, self.hidden_size))
@@ -1425,14 +1425,24 @@ class GPLSTMCell(nn.Module):
     def Gplstm(self, inp, hid):
         hx, cx = hid
         # print(inp.size(), hx.size())
-        gates = F.linear(inp, self.weights_ih, self.bias_ih) + F.linear(hx, self.weights_hh, self.bias_ih)
+        gates = F.linear(inp, self.weights_ih, self.bias_ih) + F.linear(hx, self.weights_hh, self.bias_hh)
         ingate, forgetgate, cellgate, outgate = gates.chunk(4, 1)
+
         ingate = self.gpnn(inp, hx) if self.gate_type == 1 else torch.sigmoid(ingate)
+        #ingate = torch.sigmoid(ingate)
+
         forgetgate = self.gpnn(inp, hx) if self.gate_type == 2 else torch.sigmoid(forgetgate)
+        #forgetgate = torch.sigmoid(forgetgate)
+
         cellgate = self.gpnn(inp, hx) if self.gate_type == 3 else torch.tanh(cellgate)
+        #cellgate = torch.tanh(cellgate)
+
         outgate = self.gpnn(inp, hx) if self.gate_type == 4 else torch.sigmoid(outgate)
+        #outgate = torch.sigmoid(outgate)
+
         cx = (forgetgate * cx) + (ingate * cellgate)
         hx = outgate * torch.tanh(cx)
+
         return hx, cx
 
 
@@ -1458,12 +1468,12 @@ class GPNN(nn.Module):
 
         # Ugly
         if self.gpnn_type == 1:
-            self.coef_lgstd = nn.Parameter(torch.empty(len(act_set), self.output_size))
+            self.coef_lgstd = nn.Parameter(torch.empty(len(act_set), output_size))
         elif self.gpnn_type == 2:
             self.weights_lgstd = nn.Parameter(torch.Tensor(output_size, input_size))
             self.bias_lgstd = nn.Parameter(torch.Tensor(output_size))
         elif self.gpnn_type == 3:
-            self.coef_lgstd = nn.Parameter(torch.empty(len(act_set), self.output_size))
+            self.coef_lgstd = nn.Parameter(torch.empty(len(act_set), output_size))
             self.weights_lgstd = nn.Parameter(torch.Tensor(output_size, input_size))
             self.bias_lgstd = nn.Parameter(torch.Tensor(output_size))
 
@@ -1491,11 +1501,13 @@ class GPNN(nn.Module):
         init.uniform_(self.coef_mean, -stdv, stdv)
 
         if self.gpnn_type == 1:
+            #self.coef_lgstd.data = torch.std(self.coef_mean.data, dim=1).unsqueeze(-1)
             init.uniform_(self.coef_lgstd, 2 * np.log(stdv), 1 * np.log(stdv))
         elif self.gpnn_type == 2:
             init.uniform_(self.weights_lgstd, 2 * np.log(stdv), 1 * np.log(stdv))
             init.uniform_(self.bias_lgstd, 2 * np.log(stdv), 1 * np.log(stdv))
         elif self.gpnn_type == 3:
+            #self.coef_lgstd.data = torch.std(self.coef_mean.data, dim=1).unsqueeze(-1)
             init.uniform_(self.coef_lgstd, 2 * np.log(stdv), 1 * np.log(stdv))
             init.uniform_(self.weights_lgstd, 2 * np.log(stdv), 1 * np.log(stdv))
             init.uniform_(self.bias_lgstd, 2 * np.log(stdv), 1 * np.log(stdv))
@@ -1521,20 +1533,22 @@ class GPNN(nn.Module):
         if self.gpnn_type in [0, 2]:
             coef = self.coef_mean
         else:
-            coef = self.coef_mean + torch.exp(self.coef_lgstd) * self.coef_sample
+            coef = self.coef_mean + torch.exp(self.coef_lgstd) * self.coef_sample if self.training else self.coef_mean
 
         if self.gpnn_type in [0, 1]:
             weights = self.weights_mean
             bias = self.bias_mean
         else:
-            weights = self.weights_mean + torch.exp(self.weights_lgstd) * self.weights_sample
-            bias = self.bias_mean + torch.exp(self.bias_lgstd) * self.bias_sample
+            weights = self.weights_mean + torch.exp(self.weights_lgstd) * self.weights_sample if self.training else self.weights_mean
+            bias = self.bias_mean + torch.exp(self.bias_lgstd) * self.bias_sample if self.training else self.bias_mean
 
         output = F.linear(inputs, weights, bias)
         #output = hx
         coef = self.softmax(coef)
 
         act_outputs = []
+        #print(self.)
+
         for i, act in enumerate(self.act_set):
 #            act_outputs.append(getattr(F, act)(output))
             act_outputs.append(getattr(F, act)(output) * coef[i, :])
@@ -1542,7 +1556,11 @@ class GPNN(nn.Module):
 
         return output
 
-#
+    def __repr__(self):
+        return self.__class__.__name__\
+            + '(act_set=' + '+'.join(self.act_set)
+
+
 ## Node-level GPNN.
 # class NodeGPNN(nn.Module):
 #     """ Gaussian Process Neural Network """
