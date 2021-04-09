@@ -1356,7 +1356,7 @@ class GPLSTM(nn.Module):
         if int(self.gpnn_type[0]) != 0:
             self.rnn.append(GPLSTMCell(input_size, hidden_size, gate_type=int(self.gpnn_type[0]), gpnn_type=int(self.gpnn_type[1])))
             self.rnn.append(nn.LSTM(input_size=hidden_size, hidden_size=hidden_size,
-                                    num_layers=self.num_layers-1, dropout=self.dropout))
+                                    num_layers=self.num_layers-1))
         else:
             self.rnn.append(nn.LSTM(input_size=hidden_size, hidden_size=hidden_size,
                                     num_layers=self.num_layers, dropout=self.dropout))
@@ -1370,7 +1370,7 @@ class GPLSTM(nn.Module):
             gplstm_oup, gplstm_hids = self.rnn[0](inputs, gplstm_hids)
             outputs, lstm_hids = self.rnn[1](gplstm_oup, lstm_hids)
             # print(type(gplstm_hids[0].unsqueeze(0)))
-            hids = torch.cat((gplstm_hids[1].unsqueeze(0), lstm_hids[1]), dim=0)
+            hids = torch.cat((gplstm_hids[0].unsqueeze(0), lstm_hids[0]), dim=0)
             cells = torch.cat((gplstm_hids[1].unsqueeze(0), lstm_hids[1]), dim=0)
             hiddens = (hids, cells)
         else:
@@ -1385,27 +1385,43 @@ class GPLSTMCell(nn.Module):
         self.input_size = input_size
         self.hidden_size = hidden_size
         self.gate_type = gate_type
-        if self.gate_type != 0:
-           self.gpnn = GPNN(self.hidden_size+self.input_size, self.hidden_size, act_set=['tanh', 'sigmoid', 'relu'], gpnn_type=gpnn_type)
+        self.gpnn_type = gpnn_type
+
+        # gpnn_type | 1-3: GPNN (new version) | 4: GPNN2 (first version).
+        # gate_type: if gpnn_type == 1-3 (GPNN), there are four different positions for GPact.
+        # 1: input_gate | 2: forget_gate | 3: cell_gate | 4: output_gate
+        # gate_type: if gpnn_type == 4 (GPNN2), there are seven different positions for GPact. 1-4 are the same.
+        # 5: cells | 6: hiddens | 7: inputs
+        if self.gpnn_type <= 3 and 0 < self.gate_type < 8:
+            self.gpnn = GPNN(self.hidden_size+self.input_size, self.hidden_size, gpnn_type=gpnn_type)
+        elif self.gpnn_type == 4 and self.gate_type <= 5:
+            self.gpnn = GPNN2(self.hidden_size, self.hidden_size, act_set=['sigmoid', 'relu', 'tanh'])
+        elif self.gpnn_type == 4 and 5 < self.gate_type <= 7:
+            self.gpnn = GPNN2(self.hidden_size, self.hidden_size*4, act_set=['sigmoid', 'relu', 'tanh'])
+        pass
+
         self.weights_ih = nn.Parameter(torch.Tensor(self.hidden_size*4, self.input_size))
         self.bias_ih = nn.Parameter(torch.Tensor(self.hidden_size*4))
         self.weights_hh = nn.Parameter(torch.Tensor(self.hidden_size*4, self.hidden_size))
         self.bias_hh = nn.Parameter(torch.Tensor(self.hidden_size*4))
         self.reset_parameters()
-        self._all_weights = [k for k, v in self.__dict__.items() if '_ih' in k or '_hh' in k]
+        #self._all_weights = [k for k, v in self.__dict__.items() if '_ih' in k or '_hh' in k]
 
     def reset_parameters(self):
         stdv = 1.0 / math.sqrt(self.hidden_size)
         init.uniform_(self.weights_ih, -stdv, stdv)
         init.uniform_(self.weights_hh, -stdv, stdv)
-        init.uniform_(self.bias_ih, -stdv, stdv)
-        init.uniform_(self.bias_hh, -stdv, stdv)
+        init.constant_(self.bias_ih, 0)
+        init.constant_(self.bias_hh, 0)
 
     def forward(self, inputs, hid=None):
-        if self.gate_type != 0:
-            self.gpnn.sample_parameters()
+        if 0 < self.gate_type <= 4:
+            if self.gpnn_type <= 3:
+                self.gpnn.sample_parameters()
+
         if inputs.dim() == 2:
             inputs = inputs.unsqueeze(0)
+
         batch_size = inputs.size(1)
         outputs = None
         # Generate initial hiddens and cells
@@ -1425,20 +1441,30 @@ class GPLSTMCell(nn.Module):
     def Gplstm(self, inp, hid):
         hx, cx = hid
         # print(inp.size(), hx.size())
-        gates = F.linear(inp, self.weights_ih, self.bias_ih) + F.linear(hx, self.weights_hh, self.bias_hh)
+        if self.gate_type == 6 and self.gpnn_type == 4:
+            gates = F.linear(inp, self.weights_ih, self.bias_ih) + self.gpnn(hx)
+        elif self.gate_type == 7 and self.gpnn_type == 4:
+            gates = self.gpnn(inp) + F.linear(hx, self.weights_hh, self.bias_ih)
+        else:
+            gates = F.linear(inp, self.weights_ih, self.bias_ih) + F.linear(hx, self.weights_hh, self.bias_ih)
+        pass
+
         ingate, forgetgate, cellgate, outgate = gates.chunk(4, 1)
 
-        ingate = self.gpnn(inp, hx) if self.gate_type == 1 else torch.sigmoid(ingate)
-        #ingate = torch.sigmoid(ingate)
-
-        forgetgate = self.gpnn(inp, hx) if self.gate_type == 2 else torch.sigmoid(forgetgate)
-        #forgetgate = torch.sigmoid(forgetgate)
-
-        cellgate = self.gpnn(inp, hx) if self.gate_type == 3 else torch.tanh(cellgate)
-        #cellgate = torch.tanh(cellgate)
-
-        outgate = self.gpnn(inp, hx) if self.gate_type == 4 else torch.sigmoid(outgate)
-        #outgate = torch.sigmoid(outgate)
+        # Very ugly.
+        if self.gpnn_type <= 3:
+            ingate = self.gpnn(inp, hx) if self.gate_type == 1 else torch.sigmoid(ingate)
+            forgetgate = self.gpnn(inp, hx) if self.gate_type == 2 else torch.sigmoid(forgetgate)
+            cellgate = self.gpnn(inp, hx) if self.gate_type == 3 else torch.tanh(cellgate)
+            outgate = self.gpnn(inp, hx) if self.gate_type == 4 else torch.sigmoid(outgate)
+        else:
+            ingate = self.gpnn(ingate) if self.gate_type == 1 else torch.sigmoid(ingate)
+            forgetgate = self.gpnn(forgetgate) if self.gate_type == 2 else torch.sigmoid(forgetgate)
+            cellgate = self.gpnn(cellgate) if self.gate_type == 3 else torch.tanh(cellgate)
+            outgate = self.gpnn(outgate) if self.gate_type == 4 else torch.sigmoid(outgate)
+            if self.gate_type == 5:
+                cx = self.gpnn(cx)
+        pass
 
         cx = (forgetgate * cx) + (ingate * cellgate)
         hx = outgate * torch.tanh(cx)
@@ -1453,7 +1479,7 @@ class GPNN(nn.Module):
     2. Bayesian Weights, Deterministic Coeffs
     3. Bayesian Weights, Bayesian Coeffs
     '''
-    def __init__(self, input_size, output_size, act_set=['tanh', 'sigmoid', 'relu'], gpnn_type=0):
+    def __init__(self, input_size, output_size, act_set=['sigmoid', 'tanh', 'relu'], gpnn_type=0):
         super(GPNN, self).__init__()
         self.input_size = input_size
         self.output_size = output_size
@@ -1463,7 +1489,7 @@ class GPNN(nn.Module):
         # GPNN-0 setting
         self.weights_mean = nn.Parameter(torch.Tensor(output_size, input_size))
         self.bias_mean = nn.Parameter(torch.Tensor(output_size))
-        self.coef_mean = nn.Parameter(torch.empty(len(act_set), self.output_size))
+        self.coef_mean = nn.Parameter(torch.Tensor(len(act_set), output_size))
         self.softmax = nn.Softmax(dim=0)
 
         # Ugly
@@ -1494,11 +1520,18 @@ class GPNN(nn.Module):
         return kl
 
     def reset_parameters(self):
-        # import pdb; pdb.set_trace()
+        #import pdb; pdb.set_trace()
         stdv = 1. / math.sqrt(self.output_size)
         init.uniform_(self.weights_mean, -stdv, stdv)
-        init.uniform_(self.bias_mean, -stdv, stdv)  # Or can set to zero
-        init.uniform_(self.coef_mean, -stdv, stdv)
+        init.constant_(self.bias_mean, 0)  # Or can set to zero
+        init.uniform_(self.coef_mean, 0, 1)
+        #init.uniform_(self.coef_mean[-1], 1)
+        #init.constant_(self.coef_mean[1], 0)
+        #init.constant_(self.coef_mean[2], 0)
+
+        #self.weights_mean.data.uniform_(-stdv, stdv)
+        #self.bias_mean.data.uniform_(-stdv, stdv)
+        #self.coef_mean.data.uniform_(-stdv, stdv)
 
         if self.gpnn_type == 1:
             #self.coef_lgstd.data = torch.std(self.coef_mean.data, dim=1).unsqueeze(-1)
@@ -1544,21 +1577,95 @@ class GPNN(nn.Module):
 
         output = F.linear(inputs, weights, bias)
         #output = hx
-        coef = self.softmax(coef)
+        #import pdb; pdb.set_trace()
+        #coef = self.softmax(coef)
 
         act_outputs = []
-        #print(self.)
-
+        #print(coef)
+        #import pdb; pdb.set_trace()
         for i, act in enumerate(self.act_set):
 #            act_outputs.append(getattr(F, act)(output))
-            act_outputs.append(getattr(F, act)(output) * coef[i, :])
+#            coef = torch.ones_like(coef)
+            act_outputs.append(getattr(F, act)(output) * coef[i])
+
+#        output = torch.sigmoid(output)
         output = torch.sum(torch.stack(act_outputs), 0)
+#        output = act_outputs[0]
 
         return output
 
     def __repr__(self):
         return self.__class__.__name__\
             + '(act_set=' + '+'.join(self.act_set)
+
+
+class GPNN2(nn.Module):
+
+    """ Gaussian Process Neural Network """
+
+    def __init__(self, input_dim, output_dim, n_MC_terms=150,
+                 act_set={'sigmoid', 'tanh', 'relu', 'gelu'},
+                 skip_act=True, deterministic=False, update_prior=True):
+        super(GPNN2, self).__init__()
+        self.input_dim = input_dim
+        self.output_dim = output_dim
+        self.n_MC_terms = n_MC_terms
+        self.act_set = act_set
+        self.skip_act = skip_act
+        self.deterministic = deterministic
+        self.update_prior = update_prior
+        self.frequency_mean = nn.Parameter(torch.Tensor(input_dim, n_MC_terms))
+        self.frequency_lgstd = nn.Parameter(torch.Tensor(input_dim, n_MC_terms))
+        self.coef = nn.Linear(n_MC_terms, output_dim)
+        self.init_parameters()
+
+    def init_parameters(self):
+        stdv = 1. / math.sqrt(self.n_MC_terms)
+        self.frequency_mean.data.uniform_(-stdv, stdv)
+        self.frequency_lgstd.data.uniform_(2*np.log(stdv), np.log(stdv))
+
+    def forward(self, input):
+        if(self.training and not self.deterministic):
+            frequency_std = torch.exp(self.frequency_lgstd)
+            epsilon = frequency_std.new_zeros([self.input_dim, self.n_MC_terms]).normal_()
+            frequency = self.frequency_mean+epsilon*frequency_std
+        else:
+            frequency = self.frequency_mean
+        output = input.matmul(frequency)
+        act_outputs = [output] if self.skip_act else []
+        for act in self.act_set:
+            if(act == 'sin' or act == 'cos'):
+                act_outputs.append(getattr(torch, act)(output))
+            else:
+                act_outputs.append(getattr(F, act)(output))
+        output = torch.sum(torch.stack(act_outputs), 0)
+        return self.coef(output/math.sqrt(self.n_MC_terms))
+
+    def kl_divergence(self):
+        device = next(self.parameters()).device
+        self.frequency_mean_prior = self.frequency_mean_prior.to(device)
+        self.frequency_lgstd_prior = self.frequency_lgstd_prior.to(device)
+        frequency_var = torch.exp(2*self.frequency_lgstd)
+        frequency_var_prior = torch.exp(2*self.frequency_lgstd_prior)
+        mean_square = (self.frequency_mean-self.frequency_mean_prior)**2./frequency_var_prior
+        std_square = frequency_var/frequency_var_prior
+        log_std_square = 2*(self.frequency_lgstd_prior-self.frequency_lgstd)/self.frequency_mean.size(1)
+        return torch.sum(mean_square+std_square-log_std_square-1)/2.
+
+    def reset_prior(self):
+        self.frequency_mean_prior =\
+            self.frequency_mean.new_zeros([self.input_dim, self.n_MC_terms])
+        self.frequency_lgstd_prior =\
+            self.frequency_lgstd.new_zeros([self.input_dim, self.n_MC_terms])
+        if(self.update_prior):
+            self.frequency_mean_prior.data = self.frequency_mean.data.clone()
+            self.frequency_lgstd_prior.data = self.frequency_lgstd.data.clone()
+
+    def __repr__(self):
+        return self.__class__.__name__\
+            + '(act_set=' + '+'.join(self.act_set)\
+            + ', n_MC_terms=' + str(self.n_MC_terms)\
+            + ', deterministic=' + str(self.deterministic) + ')'
 
 
 ## Node-level GPNN.
@@ -1716,7 +1823,12 @@ class GaussTransformerEncoderLayer(nn.Module):
         self.linear1 = nn.Linear(d_model, dim_feedforward)
         self.dropout = nn.Dropout(dropout)
         self.linear2 = nn.Linear(dim_feedforward, d_model)
-        self.gpnn = GPNN(d_model, dim_feedforward, act_set=['tanh', 'sigmoid', 'relu', 'gelu'], gpnn_type=gauss_pos)
+        self.gpnn_type = gauss_pos
+
+        if 0 <= gauss_pos <= 3:
+            self.gpnn = GPNN(d_model, dim_feedforward, act_set=['tanh', 'sigmoid', 'relu', 'gelu'], gpnn_type=gauss_pos)
+        elif gauss_pos == 4:
+            self.gpnn = GPNN2(d_model, dim_feedforward, act_set=['tanh', 'sigmoid', 'relu', 'gelu'])
 
         self.norm1 = nn.LayerNorm(d_model)
         self.norm2 = nn.LayerNorm(d_model)
@@ -1731,7 +1843,9 @@ class GaussTransformerEncoderLayer(nn.Module):
         src = self.norm1(src)
 
         # Entering the Linear part
-        self.gpnn.sample_parameters()
+        if self.gpnn_type < 4:
+            self.gpnn.sample_parameters()
+
         src2 = self.linear2(self.dropout(self.gpnn(src)))
 
         src = src + self.dropout2(src2)
@@ -1753,7 +1867,7 @@ class GaussTransformerModel(nn.Module):
         self.src_mask = None
         self.pos_encoder = PositionalEncoding(ninp, dropout)
         self.transformerlayers = nn.ModuleList()
-        if gauss_pos > 3:
+        if gauss_pos > 4:
             for i in range(nlayers):
                 self.transformerlayers.append(StandardTransformerEncoderLayer(ninp, nhead, nhid, dropout))
             pass

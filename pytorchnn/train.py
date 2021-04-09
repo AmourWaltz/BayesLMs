@@ -202,11 +202,11 @@ if args.prior == "True":
     #print(prior.state_dict().keys())
     model_dict = model.state_dict()
     prior_dict =  {k: v for k, v in prior_dict.items() if k in model_dict}
-    #print(model_dict['rnn.gpnn.act_coef'])
+    #print(model_dict['transformerlayers.0.gpnn.coef_mean'].mean(dim=1))
 
     #for k, v in prior_dict.items():
     #    if k in model_dict:
-    #        prior_dict = {k: v}
+    #        prior_dict = {k:a v}
     #        #print("in: ", k)
     #    else:
     #        print("out: ", k)
@@ -281,8 +281,8 @@ def train():
                     kl_loss = model.transformerlayers[0].gpnn.kl_divergence() / len(train_data) * args.seq_len
                     pass
             elif args.model == 'LSTM':
-                if int(args.L_gauss_pos[0]) > 0 and int(args.L_gauss_pos[1]) > 0:
-                    kl_loss = model.rnn.rnn[0].gpnn.kl_divergence() / len(train_data) * args.seq_len
+                if int(args.L_gauss_pos[0]) > 0 and 0 < int(args.L_gauss_pos[1]) <= 3:
+#                    kl_loss = model.rnn.rnn[0].gpnn.kl_divergence() / len(train_data) * args.seq_len
                     pass
                 pass
             pass
@@ -303,6 +303,9 @@ def train():
                       epoch, batch, len(train_data) // args.seq_len, lr,
                       elapsed * 1000 / args.log_interval, cur_loss, kl_loss,
                       math.exp(cur_loss)))
+            #model_dict = model.state_dict()
+            #print(model_dict['rnn.rnn.0.gpnn.coef_mean'])
+
             total_loss = 0.
             start_time = time.time()
 
@@ -347,6 +350,13 @@ try:
                                          val_loss, math.exp(val_loss)))
         print('-' * 89)
 
+        model_dict = model.state_dict()
+
+        if args.model == 'Transformer' and args.uncertainty == 'Gaussian' and args.T_gauss_pos <= 3:
+            print(model_dict['transformerlayers.0.gpnn.coef_mean'].mean(dim=1))
+        elif args.model == 'LSTM' and args.uncertainty == 'Gaussian' and int(args.L_gauss_pos[1]) <= 3:
+            print(model_dict['rnn.rnn.0.gpnn.coef_mean'])
+
         # Save the model if validation loss is the best we've seen so far.
         # Saving state_dict is preferable.
         if not best_val_loss or val_loss < best_val_loss:
@@ -373,6 +383,16 @@ with open(args.save, 'rb') as f:
     model.load_state_dict(torch.load(f, map_location=lambda storage, loc: storage))
 #    if args.model in ['RNN_TANH', 'RNN_RELU', 'LSTM', 'GRU']:
 #        model.rnn.flatten_parameters()
+
+#with open("exp/pytorch-Transformer-emb512_hid4096_nly6-ami+fisher-0.2-Gaussian-GP0-preFalse-nosoftmax/model.pt", 'rb') as f:
+#    model.load_state_dict(torch.load(f, map_location=lambda storage, loc: storage))
+
+model_dict = model.state_dict()
+
+if args.model == 'Transformer' and args.uncertainty == 'Gaussian' and args.T_gauss_pos <= 3:
+    print(model_dict['transformerlayers.0.gpnn.coef_mean'].mean(dim=1))
+elif args.model == 'LSTM' and args.uncertainty == 'Gaussian' and int(args.L_gauss_pos[1]) <= 3:
+    print(model_dict['rnn.rnn.0.gpnn.coef_mean'].mean(dim=1))
 
 # Run on test data.
 test_loss = evaluate(test_data)
