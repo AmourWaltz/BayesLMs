@@ -6,11 +6,11 @@ for all langauge models,
 
 set uncertainty = Gaussian;
 
-for LSTM LMs, change L_gauss_pos[0] (gp_type) to 0-4 for different GP activation positions in 1-layer LSTM.
+for LSTM LMs, change L_gauss_pos[0] (gp_type) to 0-4 for different GP activation positions in 1-layer LSTM. (L_gauss_pos[0] 5-7 are only available when L_gauss_pos[1] = 4 which means using GPNN2, the first version), L_gauss_pos[0] and L_gauss_pos[1] denote gate_type and gpnn_type in the code respectively.
 
-|                | baseline | input_gate | forget_gate | cell_gate | output_gate |
-| -------------- | -------- | ---------- | ----------- | --------- | ----------- |
-| L_gauss_pos[0] | 0        | 1          | 2           | 3         | 4           |
+|                | baseline | input_gate | forget_gate | cell_gate | output_gate | cells | hiddens | inputs |
+| -------------- | -------- | ---------- | ----------- | --------- | ----------- | ----- | ------- | ------ |
+| L_gauss_pos[0] | 0        | 1          | 2           | 3         | 4           | 5     | 6       | 7      |
 
 change L_gauss_pos[1] (gpnn_type) to 0-3 for different Bayesian and GPact uncertainty types ("coef" and "weight" mean using Bayesian method on coefficient and weight parameters respectively).
 
@@ -23,6 +23,8 @@ for Transformer LMs, change T_gauss_pos to 0-3 for GPact types in 1-layer FFN.
 | &times; | &radic; | 2                             |
 | &radic; | &radic; | 3                             |
 
+for both Transformer and LSTM, setting L_gauss_pos[1] or T_gauss_pos to 4 means using GPNN2 (the first version)
+
 Best settings for training Bayesian LSTM and Transformer language models, which is similar for GPact LMs.
 
 |             | embedding_dim | hidden_dim | nlayers | learning_rate         | dropout | pretrain | Bayesian_pos                              |
@@ -34,7 +36,8 @@ Training steps for GPact LSTM:
 
 1.Pretrain a no variance LSTM (deterministic=True and no lgstd, not the baseline LSTM, only for GPact on cell gate), Parameter mark is to annotate the model with any value and know from other models if there's any change of the code:
 ```
- bash run_nnlm_ami_lstm_baseline.sh --L_gauss_pos 10 --mark no
+ bash run_nnlm_ami_lstm_baseline.sh --L_gauss_pos 30 --mark no # gate_type = 3, using GPact on cell gates; gpnn_type = 0, there's no uncertainty on coef or weights.
+  bash run_nnlm_ami_lstm_baseline.sh --L_gauss_pos 64 --mark no # gate_type = 6, using GPact on hiddens (only available when gpnn_type = 4); gpnn_type = 4, using GPNN2.
 ```
 
 2.Copy the pretrained model to specific path:
