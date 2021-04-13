@@ -1525,7 +1525,8 @@ class GPNN(nn.Module):
         init.uniform_(self.weights_mean, -stdv, stdv)
         init.constant_(self.bias_mean, 0)  # Or can set to zero
         init.uniform_(self.coef_mean, 0, 1)
-        #init.uniform_(self.coef_mean[-1], 1)
+        #init.uniform_(self.coef_mean, -stdv, stdv)
+        print(self.coef_mean)
         #init.constant_(self.coef_mean[1], 0)
         #init.constant_(self.coef_mean[2], 0)
 

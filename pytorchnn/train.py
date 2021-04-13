@@ -282,7 +282,7 @@ def train():
                     pass
             elif args.model == 'LSTM':
                 if int(args.L_gauss_pos[0]) > 0 and 0 < int(args.L_gauss_pos[1]) <= 3:
-#                    kl_loss = model.rnn.rnn[0].gpnn.kl_divergence() / len(train_data) * args.seq_len
+                    kl_loss = model.rnn.rnn[0].gpnn.kl_divergence() / len(train_data) * args.seq_len
                     pass
                 pass
             pass
@@ -355,7 +355,7 @@ try:
         if args.model == 'Transformer' and args.uncertainty == 'Gaussian' and args.T_gauss_pos <= 3:
             print(model_dict['transformerlayers.0.gpnn.coef_mean'].mean(dim=1))
         elif args.model == 'LSTM' and args.uncertainty == 'Gaussian' and int(args.L_gauss_pos[1]) <= 3:
-            print(model_dict['rnn.rnn.0.gpnn.coef_mean'])
+            print(model_dict['rnn.rnn.0.gpnn.coef_mean'].mean(dim=1))
 
         # Save the model if validation loss is the best we've seen so far.
         # Saving state_dict is preferable.
