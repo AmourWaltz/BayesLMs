@@ -475,11 +475,6 @@ class BayesLSTM(nn.Module):
         bias_hh_2 = self.bias_hh_mean_2 * 1.
         bias_ih_2 = self.bias_ih_mean_2 * 1.
 
-        # weight_hh_3 = self.weight_hh_mean_3 * 1.
-        # weight_ih_3 = self.weight_ih_mean_3 * 1.
-        # bias_hh_3 = self.bias_hh_mean_3 * 1.
-        # bias_ih_3 = self.bias_ih_mean_3 * 1.
-
         if 1 <= self.position <= 4:
             weight_hh_diff, weight_ih_diff, bias_hh_diff, bias_ih_diff = self.sample_weight_diff()
             weight_hh_1[(self.position - 1) * self.hidden_size:self.position * self.hidden_size] += weight_hh_diff
@@ -935,8 +930,9 @@ class BayesTransformerModel(nn.Module):
                 self.transformerlayers.append(StandardTransformerEncoderLayer(ninp, nhead, nhid, dropout))
             pass
         elif bayes_pos == 'FFN':
-            self.transformerlayers.append(BayesTransformerEncoderLayer(ninp, nhead, nhid, dropout=0.1, bayes_pos=bayes_pos))
-            for i in range(nlayers-1):
+            self.transformerlayers.append(StandardTransformerEncoderLayer(ninp, nhead, nhid, dropout))
+            self.transformerlayers.append(BayesTransformerEncoderLayer(ninp, nhead, nhid, dropout=0.0, bayes_pos=bayes_pos))
+            for i in range(nlayers-2):
                 self.transformerlayers.append(StandardTransformerEncoderLayer(ninp, nhead, nhid, dropout))
             pass
         elif bayes_pos == 'MHA':
@@ -1392,12 +1388,23 @@ class GPLSTMCell(nn.Module):
         # 1: input_gate | 2: forget_gate | 3: cell_gate | 4: output_gate
         # gate_type: if gpnn_type == 4 (GPNN2), there are seven different positions for GPact. 1-4 are the same.
         # 5: cells | 6: hiddens | 7: inputs
-        if self.gpnn_type <= 3 and 0 < self.gate_type < 8:
-            self.gpnn = GPNN(self.hidden_size+self.input_size, self.hidden_size, gpnn_type=gpnn_type)
-        elif self.gpnn_type == 4 and self.gate_type <= 5:
-            self.gpnn = GPNN2(self.hidden_size, self.hidden_size, act_set=['sigmoid', 'relu', 'tanh'])
-        elif self.gpnn_type == 4 and 5 < self.gate_type <= 7:
-            self.gpnn = GPNN2(self.hidden_size, self.hidden_size*4, act_set=['sigmoid', 'relu', 'tanh'])
+        if self.gpnn_type <= 3:
+            if self.gate_type == 3:
+                self.gpnn = GPNN(self.hidden_size+self.input_size, self.hidden_size, gpnn_type=gpnn_type)
+            elif self.gate_type == 1 or self.gate_type == 4:
+                self.gpnn = GPNN(self.hidden_size+self.input_size, self.hidden_size, act_set=['sigmoid', 'tanh'], gpnn_type=gpnn_type)
+            elif self.gate_type == 2:
+                self.gpnn = GPNN(self.hidden_size+self.input_size, self.hidden_size, act_set=['sigmoid'], gpnn_type=gpnn_type)
+            elif self.gate_type == 5:
+                self.gpnn = GPNN(self.input_size, self.hidden_size, gpnn_type=gpnn_type)
+            elif 5 < self.gate_type <= 7:
+                self.gpnn = GPNN(self.input_size, 4*self.hidden_size, gpnn_type=gpnn_type)
+        elif self.gpnn_type == 4:
+            if 0 < self.gate_type <= 5:
+                self.gpnn = GPNN2(self.hidden_size, self.hidden_size, act_set=['sigmoid', 'relu', 'tanh'])
+            elif 5 < self.gate_type <= 7:
+                self.gpnn = GPNN2(self.hidden_size, self.hidden_size*4, act_set=['sigmoid', 'relu', 'tanh'])
+            pass
         pass
 
         self.weights_ih = nn.Parameter(torch.Tensor(self.hidden_size*4, self.input_size))
@@ -1415,7 +1422,7 @@ class GPLSTMCell(nn.Module):
         init.constant_(self.bias_hh, 0)
 
     def forward(self, inputs, hid=None):
-        if 0 < self.gate_type <= 4:
+        if 0 < self.gate_type <= 7:
             if self.gpnn_type <= 3:
                 self.gpnn.sample_parameters()
 
@@ -1441,9 +1448,9 @@ class GPLSTMCell(nn.Module):
     def Gplstm(self, inp, hid):
         hx, cx = hid
         # print(inp.size(), hx.size())
-        if self.gate_type == 6 and self.gpnn_type == 4:
+        if self.gate_type == 6 and self.gpnn_type <= 4:
             gates = F.linear(inp, self.weights_ih, self.bias_ih) + self.gpnn(hx)
-        elif self.gate_type == 7 and self.gpnn_type == 4:
+        elif self.gate_type == 7 and self.gpnn_type <= 4:
             gates = self.gpnn(inp) + F.linear(hx, self.weights_hh, self.bias_ih)
         else:
             gates = F.linear(inp, self.weights_ih, self.bias_ih) + F.linear(hx, self.weights_hh, self.bias_ih)
@@ -1457,6 +1464,8 @@ class GPLSTMCell(nn.Module):
             forgetgate = self.gpnn(inp, hx) if self.gate_type == 2 else torch.sigmoid(forgetgate)
             cellgate = self.gpnn(inp, hx) if self.gate_type == 3 else torch.tanh(cellgate)
             outgate = self.gpnn(inp, hx) if self.gate_type == 4 else torch.sigmoid(outgate)
+            if self.gate_type == 5:
+                cx = self.gpnn(cx)
         else:
             ingate = self.gpnn(ingate) if self.gate_type == 1 else torch.sigmoid(ingate)
             forgetgate = self.gpnn(forgetgate) if self.gate_type == 2 else torch.sigmoid(forgetgate)
@@ -1524,9 +1533,9 @@ class GPNN(nn.Module):
         stdv = 1. / math.sqrt(self.output_size)
         init.uniform_(self.weights_mean, -stdv, stdv)
         init.constant_(self.bias_mean, 0)  # Or can set to zero
-        init.uniform_(self.coef_mean, 0, 1)
-        #init.uniform_(self.coef_mean, -stdv, stdv)
-        print(self.coef_mean)
+        #init.uniform_(self.coef_mean, 0, 1)
+        init.uniform_(self.coef_mean, -stdv, stdv)
+        print(self.coef_mean.mean(dim=1))
         #init.constant_(self.coef_mean[1], 0)
         #init.constant_(self.coef_mean[2], 0)
 

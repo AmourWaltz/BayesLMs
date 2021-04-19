@@ -265,7 +265,7 @@ def train():
                 pass
             elif args.model == 'Transformer':
                 if args.T_bayes_pos == 'FFN':
-                    kl_loss += model.transformerlayers[0].linear2.kl_divergence() / len(train_data) * args.seq_len
+                    kl_loss += model.transformerlayers[1].linear2.kl_divergence() / len(train_data) * args.seq_len
                     pass
                 elif args.T_bayes_pos == 'MHA':
                     kl_loss += model.transformerlayers[0].self_attn.o_net.kl_divergence() / len(train_data) * args.seq_len
@@ -278,11 +278,11 @@ def train():
         elif args.uncertainty == 'Gaussian':
             if args.model == 'Transformer':
                 if 1 <= args.T_gauss_pos <= 3:
-                    kl_loss = model.transformerlayers[0].gpnn.kl_divergence() / len(train_data) * args.seq_len
+#                    kl_loss = model.transformerlayers[0].gpnn.kl_divergence() / len(train_data) * args.seq_len
                     pass
             elif args.model == 'LSTM':
                 if int(args.L_gauss_pos[0]) > 0 and 0 < int(args.L_gauss_pos[1]) <= 3:
-                    kl_loss = model.rnn.rnn[0].gpnn.kl_divergence() / len(train_data) * args.seq_len
+#                    kl_loss = model.rnn.rnn[0].gpnn.kl_divergence() / len(train_data) * args.seq_len
                     pass
                 pass
             pass
