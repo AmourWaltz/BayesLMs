@@ -16,6 +16,7 @@ uncertainty=Gaussian
 T_bayes_pos=FFN # bayes position, options:none, FFN, MHA, EMB
 L_bayes_pos=0 # LSTM Bayesian position: [0: standard | 1: input_gate | 2: forget_gate | 3: cell_gate | 4: output_gate]
 L_gauss_pos=0
+T_gauss_pos=0
 interpolation_flag=0
 inter_alpha=0.8
 use_phi=false  # This is kind of an obscure option.  If true, we'll remove the old
@@ -35,6 +36,7 @@ echo "$0 $*"  # Print the command line for logging
 [ -f ./path.sh ] && . ./path.sh
 . utils/parse_options.sh
 
+echo "$2"
 if [ $# != 7 ]; then
    echo "Do language model rescoring of lattices (partially remove old LM, add new LM)"
    echo "This version applies an neural LM and mixes it with the n-gram LM scores"
@@ -207,6 +209,7 @@ if [ $stage -le 6 ]; then
         --L_bayes_pos $L_bayes_pos \
         --T_bayes_pos $T_bayes_pos \
         --L_gauss_pos $L_gauss_pos \
+        --T_gauss_pos $T_gauss_pos \
         --interpolation_flag $interpolation_flag \
         --inter_alpha $inter_alpha
 fi

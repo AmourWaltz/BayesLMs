@@ -334,11 +334,13 @@ def main():
                         help='Transformer Bayesian type: [None | FFN | MHA | EMB]')
     parser.add_argument('--L_bayes_pos', type=int, default=0,
                         help='LSTM Bayesian position: [None | 1: input_gate | 2: forget_gate | 3: cell_gate | 4: output_gate]')
-    parser.add_argument('--L_gauss_pos', type=int, default=0,
-                        help='LSTM Gaussian position: [0: None | 1: input_gate | 2: forget_gate | 3: cell_gate | 4: output_gate'
-                             ' | 5: cell | 6: hidden | 7: inputs]')
-    parser.add_argument('--T_gauss_pos', type=int, default=0,
-                        help='Transformer Gaussian position: [0: None | 1: FFN]')
+    parser.add_argument('--L_gauss_pos', type=str, default='00',
+                        help='LSTM Gaussian position: [str[0] - 0: None | 1: input_gate | 2: forget_gate | 3: cell_gate | 4: output_gate'
+                             ' str[1] - 0: d-weight, d-coef | 1: nd-weight, d-coef | 2: d-weight, nd-coef '
+                             '| 3: nd-weight, nd-coef')
+    parser.add_argument('--T_gauss_pos', type=int, default=3,
+                        help='Transformer Gaussian type: [0: d-weight, d-coef | 1: nd-weight, d-coef | 2: d-weight, nd-coef '
+                             '| 3: nd-weight, nd-coef]')
 
     # interpolation
     parser.add_argument('--interpolation_flag', type=int, default=0,
@@ -361,15 +363,18 @@ def main():
     vocab = read_vocab(args.vocabulary)
     ntokens = len(vocab)
     print("Load model and criterion")
+
     import model
     if args.model == 'Transformer':
         # The activation function can be 'relu' (default) or 'gelu'
         if args.uncertainty == 'none':
             model_1 = model.TransformerModel(ntokens, args.emsize, args.nhead, args.nhid,
                                            args.nlayers, 0.5, "gelu", args.tied)
+            print(model_1)
         elif args.uncertainty == 'Bayesian':
             model_1 = model.BayesTransformerModel(ntokens, args.emsize, args.nhead, args.nhid,
                                                 args.nlayers, 0.5, True, args.T_bayes_pos)
+            print(model_1)
             if args.interpolation_flag == 1:
                 model_2 = model.BayesTransformerModel(ntokens, args.emsize, args.nhead,
                                                       args.nhid, args.nlayers, 0.5, True, 'none')
@@ -379,20 +384,21 @@ def main():
         elif args.uncertainty == 'Gaussian':
             model_1 = model.GaussTransformerModel(ntokens, args.emsize, args.nhead, args.nhid,
                                                 args.nlayers, 0.5, True, args.T_gauss_pos)
+            print(model_1)
             if args.interpolation_flag == 1:
-                model_2 = model.GaussTransformerModel(ntokens, args.emsize, args.nhead,
-                                                      args.nhid, args.nlayers, 0.5, True, 0)
+                model_2 = model.BayesTransformerModel(ntokens, args.emsize, args.nhead,
+                                                      args.nhid, args.nlayers, 0.5, True, 'none')
                 print(model_2)
             else:
                 model_2 = None
     else:
         if args.uncertainty == 'none':
             model_1 = model.RNNModel(args.model, ntokens, args.emsize, args.nhid,
-                                   args.nlayers, 0.5, args.tied)
+                                   args.nlayers, 0.5, True)
             print(model_1)
         elif args.uncertainty == 'Bayesian':
             model_1 = model.BayesRNNModel(args.model, ntokens, args.emsize, args.nhid,
-                                        args.nlayers, 0.5, args.tied, args.L_bayes_pos)
+                                        args.nlayers, 0.5, True, args.L_bayes_pos)
             print(model_1)
             if args.interpolation_flag == 1:
                 model_2 = model.BayesRNNModel(args.model, ntokens, args.emsize, args.nhid,
@@ -405,7 +411,7 @@ def main():
                                         args.nlayers, 0.5, False, args.L_gauss_pos)
             print(model_1)
             if args.interpolation_flag == 1:
-                model_2 = model.GaussianRNNModel(args.model, ntokens, args.emsize, args.nhid,
+                model_2 = model.BayesRNNModel(args.model, ntokens, args.emsize, args.nhid,
                                               args.nlayers, 0.5, False, 0)
                 print(model_2)
             else:
@@ -414,17 +420,28 @@ def main():
         pass
     pass
 
+    if args.model == 'Transformer':
+        args.inter_path = '/project_bdda3/bdda/byxue/ami/s5c/exp/pytorch-Transformer-emb512_hid4096_nly6-ami+fisher-0.2-Bayesian-none-preFalse-no/model.pt'
+    else:
+        args.inter_path = '/project_bdda3/bdda/byxue/ami/s5c/exp/pytorch-LSTM-emb1024_hid1024_nly2-ami+fisher-0.2-Bayesian-0-preFalse-no/model.pt'
+    pass
+
     with open(args.model_path, 'rb') as f:
-        model_dict = torch.load(f, map_location=lambda storage, loc: storage)
-        model_1.load_state_dict(model_dict)
+        model_dict_1 = torch.load(f, map_location=lambda storage, loc: storage)
+    model1_dict = model_1.state_dict()
+    model_dict_1 = {k: v for k, v in model_dict_1.items() if k in model1_dict}
+    model1_dict.update(model_dict_1)
+    model_1.load_state_dict(model1_dict)
         #print(n_model.state_dict())
         #if args.model in ['RNN_TANH', 'RNN_RELU', 'LSTM', 'GRU']:
         #    model.rnn.flatten_parameters()
     if args.interpolation_flag == 1:
         with open(args.inter_path, 'rb') as f:
             model_dict_2 = torch.load(f, map_location=lambda storage, loc: storage)
-            model_2.load_state_dict(model_dict_2)
-            #print(n_model_2.state_dict())
+        model2_dict = model_2.state_dict()
+        model_dict_2 =  {k: v for k, v in model_dict_2.items() if k in model2_dict}
+        model2_dict.update(model_dict_2)
+        model_2.load_state_dict(model2_dict)
 
     criterion = nn.CrossEntropyLoss()
     print("Load nbest list", args.nbest_list)

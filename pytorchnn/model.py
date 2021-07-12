@@ -388,13 +388,6 @@ class BayesLSTM(nn.Module):
         # bias vector is needed in standard definition.
         self.bias_hh_mean_2 = nn.Parameter(torch.Tensor(gate_size))
 
-        self.weight_ih_mean_3 = nn.Parameter(torch.Tensor(gate_size, input_size))
-        self.weight_hh_mean_3 = nn.Parameter(torch.Tensor(gate_size, hidden_size))
-        self.bias_ih_mean_3 = nn.Parameter(torch.Tensor(gate_size))
-        # Second bias vector included for CuDNN compatibility. Only one
-        # bias vector is needed in standard definition.
-        self.bias_hh_mean_3 = nn.Parameter(torch.Tensor(gate_size))
-
         if 1 <= self.position <= 4:
             self.weight_hh_lgstd_1 = nn.Parameter(torch.rand(hidden_size, hidden_size))
             self.weight_ih_lgstd_1 = nn.Parameter(torch.rand(hidden_size, input_size))
@@ -430,12 +423,13 @@ class BayesLSTM(nn.Module):
         init.uniform_(self.bias_hh_mean_2, -stdv, stdv)
         init.uniform_(self.bias_ih_mean_2, -stdv, stdv)
 
-        init.uniform_(self.weight_ih_mean_3, -stdv, stdv)
-        init.uniform_(self.weight_hh_mean_3, -stdv, stdv)
-        init.uniform_(self.bias_hh_mean_3, -stdv, stdv)
-        init.uniform_(self.bias_ih_mean_3, -stdv, stdv)
-
         if 1 <= self.position <= 4:
+            init.uniform_(self.weight_hh_lgstd_1, 2 * math.log(stdv), math.log(stdv))
+            init.uniform_(self.weight_ih_lgstd_1, 2 * math.log(stdv), math.log(stdv))
+            init.uniform_(self.bias_hh_lgstd_1, 2 * math.log(stdv), math.log(stdv))
+            init.uniform_(self.bias_ih_lgstd_1, 2 * math.log(stdv), math.log(stdv))
+            pass
+        elif self.position == 5:
             init.uniform_(self.weight_hh_lgstd_1, 2 * math.log(stdv), math.log(stdv))
             init.uniform_(self.weight_ih_lgstd_1, 2 * math.log(stdv), math.log(stdv))
             init.uniform_(self.bias_hh_lgstd_1, 2 * math.log(stdv), math.log(stdv))
@@ -482,6 +476,12 @@ class BayesLSTM(nn.Module):
             bias_hh_1[(self.position - 1) * self.hidden_size:self.position * self.hidden_size] += bias_hh_diff
             bias_ih_1[(self.position - 1) * self.hidden_size:self.position * self.hidden_size] += bias_ih_diff
             pass
+        elif self.position == 5:
+            weight_hh_diff, weight_ih_diff, bias_hh_diff, bias_ih_diff = self.sample_weight_diff()
+            weight_hh_2[:] += weight_hh_diff
+            weight_ih_2[:] += weight_ih_diff
+            bias_hh_2[:] += bias_hh_diff
+            bias_ih_2[:] += bias_ih_diff
         pass
 
         return [weight_ih_1[:, :].contiguous(), weight_hh_1[:, :].contiguous(),
@@ -506,6 +506,252 @@ class BayesLSTM(nn.Module):
             weight_lgstd = torch.cat([self.weight_hh_lgstd_1, self.weight_ih_lgstd_1], -1)
             bias_mean = torch.cat([self.bias_hh_mean_1, self.bias_ih_mean_1], -1)
             bias_lgstd = torch.cat([self.bias_hh_lgstd_1, self.bias_ih_lgstd_1], -1)
+            pass
+        else:
+            weight_lgstd, weight_mean, bias_lgstd, bias_mean = 0., 0., 0., 0.
+            pass
+        pass
+
+        if prior is None and 1 <= self.position <= 5:
+            kl += torch.mean(
+                weight_mean ** 2. - weight_lgstd * 2. + torch.exp(weight_lgstd * 2)) / 2.  # Max uses mean in orign
+            kl += torch.mean(
+                bias_mean ** 2. - bias_lgstd * 2. + torch.exp(bias_lgstd * 2)) / 2.  # Max uses mean in orign
+        else:
+            if 1 <= self.position <= 4:
+                prior = torch.cat([prior['rnns.weight_hh_mean'][
+                                   (self.position - 1) * self.hidden_size:self.position * self.hidden_size],
+                                   prior['rnns.weight_ih_mean'][
+                                   (self.position - 1) * self.hidden_size:self.position * self.hidden_size]], -1)
+            if self.position == 5:
+                prior = torch.cat([prior['rnns.weight_hh_mean'], prior['weight.theta_ih_mean']], -1)
+            kl += torch.sum((weight_mean - prior) ** 2. - weight_lgstd * 2. + torch.exp(weight_lgstd * 2)) / 2.
+        return kl
+
+    @staticmethod
+    def permute_hidden(hx, permutation):
+        if permutation is None:
+            return hx
+        return hx[0].index_select(1, permutation), hx[1].index_select(1, permutation)
+
+    def forward(self, inputs, hx=None):  # noqa: F811
+        orig_input = inputs
+        # xxx: isinstance check needs to be in conditional for TorchScript to compile
+        if isinstance(orig_input, PackedSequence):
+            inputs, batch_sizes, sorted_indices, unsorted_indices = inputs
+            max_batch_size = batch_sizes[0]
+            max_batch_size = int(max_batch_size)
+        else:
+            batch_sizes = None
+            max_batch_size = inputs.size(1)
+            sorted_indices = None
+            unsorted_indices = None
+
+        if hx is None:
+            zeros = torch.zeros(self.num_layers,
+                                max_batch_size, self.hidden_size,
+                                dtype=inputs.dtype, device=inputs.device)
+            hx = (zeros, zeros)
+            pass
+        else:
+            # Each batch of the hidden state should match the input sequence that
+            # the user believes he/she is passing in.
+            hx = self.permute_hidden(hx, sorted_indices)
+            pass
+        pass
+
+        # self.flatten_parameters()
+        # print(self.flat_parameters()[0].size())
+        if batch_sizes is None:
+            result = _rnn_impls['LSTM'](inputs, hx, self.flat_parameters(), self.bias, self.num_layers,
+                                        0., self.training, False, False)
+            pass
+        else:
+            result = _rnn_impls['LSTM'](inputs, batch_sizes, hx, self.flat_parameters(), self.bias,
+                                        self.num_layers, 0., self.training, False)
+            pass
+        pass
+
+        output = result[0]
+        hidden = result[1:]
+        # xxx: isinstance check needs to be in conditional for TorchScript to compile
+        if isinstance(orig_input, PackedSequence):
+            output_packed = PackedSequence(output, batch_sizes, sorted_indices, unsorted_indices)
+            return output_packed, self.permute_hidden(hidden, unsorted_indices)
+        else:
+            return output, self.permute_hidden(hidden, unsorted_indices)
+
+
+class Bayes2LSTM(nn.Module):
+    def __init__(self, input_size, hidden_size, num_layers=1, position=0, bias=True, dropout=0., bayes_pos=0):
+        super(Bayes2LSTM, self).__init__()
+        self.input_size = input_size
+        self.hidden_size = hidden_size
+        self.bias = bias
+        self.num_layers = num_layers
+        self.dropout = float(dropout)
+        self.position = position
+
+        # LSTM: input gate, forget gate, cell gate, output gate.
+        gate_size = 4 * hidden_size
+
+        self.weight_ih_mean_1 = nn.Parameter(torch.Tensor(gate_size, input_size))
+        self.weight_hh_mean_1 = nn.Parameter(torch.Tensor(gate_size, hidden_size))
+        self.bias_ih_mean_1 = nn.Parameter(torch.Tensor(gate_size))
+        # Second bias vector included for CuDNN compatibility. Only one
+        # bias vector is needed in standard definition.
+        self.bias_hh_mean_1 = nn.Parameter(torch.Tensor(gate_size))
+
+        self.weight_ih_mean_2 = nn.Parameter(torch.Tensor(gate_size, input_size))
+        self.weight_hh_mean_2 = nn.Parameter(torch.Tensor(gate_size, hidden_size))
+        self.bias_ih_mean_2 = nn.Parameter(torch.Tensor(gate_size))
+        # Second bias vector included for CuDNN compatibility. Only one
+        # bias vector is needed in standard definition.
+        self.bias_hh_mean_2 = nn.Parameter(torch.Tensor(gate_size))
+
+
+        if 1 <= self.position <= 4:
+            self.weight_hh_lgstd_1 = nn.Parameter(torch.rand(hidden_size, hidden_size))
+            self.weight_ih_lgstd_1 = nn.Parameter(torch.rand(hidden_size, input_size))
+            self.bias_hh_lgstd_1 = nn.Parameter(torch.rand(hidden_size))
+            self.bias_ih_lgstd_1 = nn.Parameter(torch.rand(hidden_size))
+            self.weight_hh_lgstd_2 = nn.Parameter(torch.rand(hidden_size, hidden_size))
+            self.weight_ih_lgstd_2 = nn.Parameter(torch.rand(hidden_size, input_size))
+            self.bias_hh_lgstd_2 = nn.Parameter(torch.rand(hidden_size))
+            self.bias_ih_lgstd_2 = nn.Parameter(torch.rand(hidden_size))
+            pass
+        pass
+
+        if self.position == 5:
+            self.weight_hh_lgstd_1 = nn.Parameter(torch.rand(gate_size, hidden_size))
+            self.weight_ih_lgstd_1 = nn.Parameter(torch.rand(gate_size, input_size))
+            self.bias_hh_lgstd_1 = nn.Parameter(torch.rand(gate_size))
+            self.bias_ih_lgstd_1 = nn.Parameter(torch.rand(gate_size))
+            self.weight_hh_lgstd_2 = nn.Parameter(torch.rand(gate_size, hidden_size))
+            self.weight_ih_lgstd_2 = nn.Parameter(torch.rand(gate_size, input_size))
+            self.bias_hh_lgstd_2 = nn.Parameter(torch.rand(gate_size))
+            self.bias_ih_lgstd_2 = nn.Parameter(torch.rand(gate_size))
+            pass
+        pass
+
+        self._all_weights = [k for k, v in self.__dict__.items() if '_ih' in k or '_hh' in k]
+        self.reset_parameters()
+
+    def extra_repr(self):
+        s = '{input_size}, {hidden_size}'
+        return s.format(**self.__dict__)
+
+    def reset_parameters(self):
+        stdv = 1.0 / math.sqrt(self.hidden_size)
+        init.uniform_(self.weight_ih_mean_1, -stdv, stdv)
+        init.uniform_(self.weight_hh_mean_1, -stdv, stdv)
+        init.uniform_(self.bias_hh_mean_1, -stdv, stdv)
+        init.uniform_(self.bias_ih_mean_1, -stdv, stdv)
+
+        init.uniform_(self.weight_ih_mean_2, -stdv, stdv)
+        init.uniform_(self.weight_hh_mean_2, -stdv, stdv)
+        init.uniform_(self.bias_hh_mean_2, -stdv, stdv)
+        init.uniform_(self.bias_ih_mean_2, -stdv, stdv)
+
+        if 1 <= self.position <= 4:
+            init.uniform_(self.weight_hh_lgstd_1, 2 * math.log(stdv), math.log(stdv))
+            init.uniform_(self.weight_ih_lgstd_1, 2 * math.log(stdv), math.log(stdv))
+            init.uniform_(self.bias_hh_lgstd_1, 2 * math.log(stdv), math.log(stdv))
+            init.uniform_(self.bias_ih_lgstd_1, 2 * math.log(stdv), math.log(stdv))
+            init.uniform_(self.weight_hh_lgstd_2, 2 * math.log(stdv), math.log(stdv))
+            init.uniform_(self.weight_ih_lgstd_2, 2 * math.log(stdv), math.log(stdv))
+            init.uniform_(self.bias_hh_lgstd_2, 2 * math.log(stdv), math.log(stdv))
+            init.uniform_(self.bias_ih_lgstd_2, 2 * math.log(stdv), math.log(stdv))
+            pass
+        pass
+
+    def sample_weight_diff(self):
+        if self.training:
+            weight_hh_std = torch.exp(self.weight_hh_lgstd_1)
+            epsilon = weight_hh_std.new_zeros(*weight_hh_std.size()).normal_()
+            weight_hh_diff = epsilon * weight_hh_std
+
+            weight_ih_std = torch.exp(self.weight_ih_lgstd_1)
+            epsilon = weight_ih_std.new_zeros(*weight_ih_std.size()).normal_()
+            weight_ih_diff = epsilon * weight_ih_std
+
+            bias_hh_std = torch.exp(self.bias_hh_lgstd_1)
+            epsilon = bias_hh_std.new_zeros(*bias_hh_std.size()).normal_()
+            bias_hh_diff = epsilon * bias_hh_std
+
+            bias_ih_std = torch.exp(self.bias_ih_lgstd_1)
+            epsilon = bias_ih_std.new_zeros(*bias_ih_std.size()).normal_()
+            bias_ih_diff = epsilon * bias_ih_std
+
+            weight_hh_std = torch.exp(self.weight_hh_lgstd_2)
+            epsilon = weight_hh_std.new_zeros(*weight_hh_std.size()).normal_()
+            weight_hh_diff_2 = epsilon * weight_hh_std
+
+            weight_ih_std = torch.exp(self.weight_ih_lgstd_2)
+            epsilon = weight_ih_std.new_zeros(*weight_ih_std.size()).normal_()
+            weight_ih_diff_2 = epsilon * weight_ih_std
+
+            bias_hh_std = torch.exp(self.bias_hh_lgstd_2)
+            epsilon = bias_hh_std.new_zeros(*bias_hh_std.size()).normal_()
+            bias_hh_diff_2 = epsilon * bias_hh_std
+
+            bias_ih_std = torch.exp(self.bias_ih_lgstd_2)
+            epsilon = bias_ih_std.new_zeros(*bias_ih_std.size()).normal_()
+            bias_ih_diff_2 = epsilon * bias_ih_std
+
+            return weight_hh_diff, weight_ih_diff, bias_hh_diff, bias_ih_diff, weight_hh_diff_2, weight_ih_diff_2, bias_hh_diff_2, bias_ih_diff_2
+        return 0, 0, 0, 0, 0, 0, 0, 0
+
+    def flat_parameters(self):
+        weight_hh_1 = self.weight_hh_mean_1 * 1.
+        weight_ih_1 = self.weight_ih_mean_1 * 1.
+        bias_hh_1 = self.bias_hh_mean_1 * 1.
+        bias_ih_1 = self.bias_ih_mean_1 * 1.
+
+        weight_hh_2 = self.weight_hh_mean_2 * 1.
+        weight_ih_2 = self.weight_ih_mean_2 * 1.
+        bias_hh_2 = self.bias_hh_mean_2 * 1.
+        bias_ih_2 = self.bias_ih_mean_2 * 1.
+
+        if 1 <= self.position <= 4:
+            weight_hh_diff, weight_ih_diff, bias_hh_diff, bias_ih_diff, weight_hh_diff_2, weight_ih_diff_2, bias_hh_diff_2, bias_ih_diff_2 = self.sample_weight_diff()
+            weight_hh_1[(self.position - 1) * self.hidden_size:self.position * self.hidden_size] += weight_hh_diff
+            weight_ih_1[(self.position - 1) * self.hidden_size:self.position * self.hidden_size] += weight_ih_diff
+            bias_hh_1[(self.position - 1) * self.hidden_size:self.position * self.hidden_size] += bias_hh_diff
+            bias_ih_1[(self.position - 1) * self.hidden_size:self.position * self.hidden_size] += bias_ih_diff
+            weight_hh_2[(self.position - 1) * self.hidden_size:self.position * self.hidden_size] += weight_hh_diff_2
+            weight_ih_2[(self.position - 1) * self.hidden_size:self.position * self.hidden_size] += weight_ih_diff_2
+            bias_hh_2[(self.position - 1) * self.hidden_size:self.position * self.hidden_size] += bias_hh_diff_2
+            bias_ih_2[(self.position - 1) * self.hidden_size:self.position * self.hidden_size] += bias_ih_diff_2
+            pass
+        pass
+
+        return [weight_ih_1[:, :].contiguous(), weight_hh_1[:, :].contiguous(),
+                bias_ih_1[:].contiguous(), bias_hh_1[:].contiguous(),
+                weight_ih_2[:, :].contiguous(), weight_hh_2[:, :].contiguous(),
+                bias_ih_2[:].contiguous(), bias_hh_2[:].contiguous()]
+
+    def kl_divergence(self, prior=None):
+        kl = 0
+        if 1 <= self.position <= 4:
+            weight_mean = torch.cat(
+                [self.weight_hh_mean_1[(self.position - 1) * self.hidden_size:self.position * self.hidden_size],
+                 self.weight_ih_mean_1[(self.position - 1) * self.hidden_size:self.position * self.hidden_size]], -1)
+            weight_lgstd = torch.cat([self.weight_hh_lgstd_1, self.weight_ih_lgstd_1], -1)
+            bias_mean = torch.cat(
+                [self.bias_hh_mean_1[(self.position - 1) * self.hidden_size:self.position * self.hidden_size],
+                 self.bias_ih_mean_1[(self.position - 1) * self.hidden_size:self.position * self.hidden_size]], -1)
+            bias_lgstd = torch.cat([self.bias_hh_lgstd_1, self.bias_ih_lgstd_1], -1)
+            pass
+        elif self.position == 5:
+            weight_mean = torch.cat([self.weight_hh_mean_1, self.weight_ih_mean_1], -1)
+            weight_lgstd = torch.cat([self.weight_hh_lgstd_1, self.weight_ih_lgstd_1], -1)
+            bias_mean = torch.cat([self.bias_hh_mean_1, self.bias_ih_mean_1], -1)
+            bias_lgstd = torch.cat([self.bias_hh_lgstd_1, self.bias_ih_lgstd_1], -1)
+            weight_mean += torch.cat([self.weight_hh_mean_2, self.weight_ih_mean_1], -1)
+            weight_lgstd += torch.cat([self.weight_hh_lgstd_2, self.weight_ih_lgstd_1], -1)
+            bias_mean += torch.cat([self.bias_hh_mean_2, self.bias_ih_mean_1], -1)
+            bias_lgstd += torch.cat([self.bias_hh_lgstd_2, self.bias_ih_lgstd_1], -1)
             pass
         else:
             weight_lgstd, weight_mean, bias_lgstd, bias_mean = 0., 0., 0., 0.
@@ -808,15 +1054,26 @@ class BayesLinear(nn.Module):
         self.weight_mean = nn.Parameter(torch.Tensor(out_features, in_features))
         self.weight_lgstd = nn.Parameter(torch.Tensor(out_features, in_features))
         self.use_bias = bias
+        self.sample = True
+
+        if self.sample:
+            self.weight_lgstd = nn.Parameter(torch.Tensor(out_features, in_features))
+
         if self.use_bias:
             self.bias_mean = nn.Parameter(torch.Tensor(out_features))
-            self.bias_lgstd = nn.Parameter(torch.Tensor(out_features))
+            if self.sample:
+                self.bias_lgstd = nn.Parameter(torch.Tensor(out_features))
+
         self.reset_parameters()
 
     def reset_parameters(self):
         stdv = 1.0/math.sqrt(self.out_features+1)
         self.weight_mean.data.uniform_(-stdv, stdv)
-        self.weight_lgstd.data.uniform_(2*np.log(stdv), np.log(stdv))
+        if self.sample:
+            self.weight_lgstd.data.uniform_(2*np.log(stdv), 1*np.log(stdv))
+            if self.use_bias:
+                self.bias_lgstd.data.uniform_(2*np.log(stdv), 1*np.log(stdv))
+
         if self.use_bias:
             fan_in, _ = init._calculate_fan_in_and_fan_out(self.weight_mean)
             bound = 1 / math.sqrt(fan_in)
@@ -824,16 +1081,18 @@ class BayesLinear(nn.Module):
             self.bias_std = init.uniform_(self.bias_lgstd, -bound, bound)
 
     def sample_weight_diff(self):
-        if self.training:
+        if self.training and self.sample:
+            #print("sample")
             weight_std = torch.exp(self.weight_lgstd)
-            epsilon = weight_std.new_zeros(*weight_std.size()).normal_()
+            epsilon = weight_std.new_zeros(*weight_std.size()).normal_(0, 1)
             weight_diff = epsilon*weight_std
             bias_diff = None
             if self.use_bias:
                 bias_std = torch.exp(self.bias_lgstd)
-                epsilon = bias_std.new_zeros(*bias_std.size()).normal_()
+                epsilon = bias_std.new_zeros(*bias_std.size()).normal_(0, 1)
                 bias_diff = epsilon*bias_std
             return weight_diff, bias_diff
+        #print("no-sample")
         return 0.0, 0.0
 
     def _flat_weights(self):
@@ -851,12 +1110,18 @@ class BayesLinear(nn.Module):
         kl = 0
         weight_mean = self.weight_mean
         weight_lgstd = self.weight_lgstd
-        if prior == None:
-            kl = torch.mean(weight_mean**2.-weight_lgstd*2.+torch.exp(weight_lgstd*2))/2.0
-            if self.use_bias:
-                bias_mean = self.bias_mean
-                bias_lgstd = self.bias_lgstd
-                kl += torch.mean(bias_mean**2.- bias_lgstd*2.+torch.exp(bias_lgstd*2))/2.0
+        if self.sample:
+            if prior == None:
+                kl = torch.mean(weight_mean**2.-weight_lgstd*2.+torch.exp(weight_lgstd*2))/2.0
+                if self.use_bias:
+                    bias_mean = self.bias_mean
+                    bias_lgstd = self.bias_lgstd
+                    kl += torch.mean(bias_mean**2.- bias_lgstd*2.+torch.exp(bias_lgstd*2))/2.0
+            else:
+                prior_mean = prior['transformerlayers.0.linear2.weight_mean'].cuda()
+                kl += torch.mean((weight_mean-prior_mean)**2.-weight_lgstd*2.+torch.exp(weight_lgstd*2))/2.
+            pass
+
         return kl
 
     def forward(self, input):
@@ -926,17 +1191,20 @@ class BayesTransformerModel(nn.Module):
         self.pos_encoder = PositionalEncoding(ninp, dropout)
         self.transformerlayers = nn.ModuleList()
         if bayes_pos == 'none':
+            #for i in range(4):
+            #    self.transformerlayers.append(BayesTransformerEncoderLayer(ninp, nhead, nhid, dropout, bayes_pos="MHA"))
+            #pass
             for i in range(nlayers):
                 self.transformerlayers.append(StandardTransformerEncoderLayer(ninp, nhead, nhid, dropout))
             pass
         elif bayes_pos == 'FFN':
-            self.transformerlayers.append(StandardTransformerEncoderLayer(ninp, nhead, nhid, dropout))
-            self.transformerlayers.append(BayesTransformerEncoderLayer(ninp, nhead, nhid, dropout=0.0, bayes_pos=bayes_pos))
-            for i in range(nlayers-2):
+#            self.transformerlayers.append(StandardTransformerEncoderLayer(ninp, nhead, nhid, dropout))
+            self.transformerlayers.append(BayesTransformerEncoderLayer(ninp, nhead, nhid, dropout=0.2, bayes_pos=bayes_pos))
+            for i in range(nlayers-1):
                 self.transformerlayers.append(StandardTransformerEncoderLayer(ninp, nhead, nhid, dropout))
             pass
         elif bayes_pos == 'MHA':
-            self.transformerlayers.append(BayesTransformerEncoderLayer(ninp, nhead, nhid, dropout=0.1, bayes_pos=bayes_pos))
+            self.transformerlayers.append(BayesTransformerEncoderLayer(ninp, nhead, nhid, dropout=0.2, bayes_pos=bayes_pos))
             for i in range(nlayers-1):
                 self.transformerlayers.append(StandardTransformerEncoderLayer(ninp, nhead, nhid, dropout))
             pass
@@ -1350,9 +1618,18 @@ class GPLSTM(nn.Module):
         self.gpnn_type = gpnn_type
         self.rnn = nn.ModuleList()
         if int(self.gpnn_type[0]) != 0:
-            self.rnn.append(GPLSTMCell(input_size, hidden_size, gate_type=int(self.gpnn_type[0]), gpnn_type=int(self.gpnn_type[1])))
-            self.rnn.append(nn.LSTM(input_size=hidden_size, hidden_size=hidden_size,
-                                    num_layers=self.num_layers-1))
+            if len(self.gpnn_type) == 2:
+                self.rnn.append(GPLSTMCell(input_size, hidden_size, gate_type=int(self.gpnn_type[0]), gpnn_type=int(self.gpnn_type[1])))
+                self.rnn.append(nn.LSTM(input_size=hidden_size, hidden_size=hidden_size,
+                                        num_layers=self.num_layers-1))
+            elif len(self.gpnn_type) == 3:
+                self.rnn.append(nn.LSTM(input_size=hidden_size, hidden_size=hidden_size,
+                                        num_layers=self.num_layers-1))
+                self.rnn.append(GPLSTMCell(input_size, hidden_size, gate_type=int(self.gpnn_type[0]), gpnn_type=int(self.gpnn_type[1])))
+            else:
+                self.rnn.append(GPLSTMCell(input_size, hidden_size, gate_type=int(self.gpnn_type[0]), gpnn_type=int(self.gpnn_type[1])))
+                self.rnn.append(GPLSTMCell(input_size, hidden_size, gate_type=int(self.gpnn_type[2]), gpnn_type=int(self.gpnn_type[1])))
+                pass
         else:
             self.rnn.append(nn.LSTM(input_size=hidden_size, hidden_size=hidden_size,
                                     num_layers=self.num_layers, dropout=self.dropout))
@@ -1360,15 +1637,34 @@ class GPLSTM(nn.Module):
 
     def forward(self, inputs, hidden=None):
         if int(self.gpnn_type[0]) != 0:
-            gplstm_hids = [hidden[0][0, :, :], hidden[1][0, :, :]]
-            lstm_hids = [hidden[0][1:, :, :], hidden[1][1:, :, :]]
+            if len(self.gpnn_type) == 2:
+                gplstm_hids = [hidden[0][0, :, :], hidden[1][0, :, :]]
+                lstm_hids = [hidden[0][1:, :, :], hidden[1][1:, :, :]]
 
-            gplstm_oup, gplstm_hids = self.rnn[0](inputs, gplstm_hids)
-            outputs, lstm_hids = self.rnn[1](gplstm_oup, lstm_hids)
-            # print(type(gplstm_hids[0].unsqueeze(0)))
-            hids = torch.cat((gplstm_hids[0].unsqueeze(0), lstm_hids[0]), dim=0)
-            cells = torch.cat((gplstm_hids[1].unsqueeze(0), lstm_hids[1]), dim=0)
-            hiddens = (hids, cells)
+                gplstm_oup, gplstm_hids = self.rnn[0](inputs, gplstm_hids)
+                outputs, lstm_hids = self.rnn[1](gplstm_oup, lstm_hids)
+                hids = torch.cat((gplstm_hids[0].unsqueeze(0), lstm_hids[0]), dim=0)
+                cells = torch.cat((gplstm_hids[1].unsqueeze(0), lstm_hids[1]), dim=0)
+                hiddens = (hids, cells)
+            elif len(self.gpnn_type) == 3:
+                lstm_hids = [hidden[0][0, :, :].unsqueeze(0), hidden[1][0, :, :].unsqueeze(0)]
+                gplstm_hids = [hidden[0][1:, :, :].squeeze(0), hidden[1][1:, :, :].squeeze(0)]
+
+                gplstm_oup, lstm_hids = self.rnn[0](inputs, lstm_hids)
+                outputs, gplstm_hids = self.rnn[1](gplstm_oup, gplstm_hids)
+                hids = torch.cat((lstm_hids[0], gplstm_hids[0].unsqueeze(0)), dim=0)
+                cells = torch.cat((lstm_hids[1], gplstm_hids[1].unsqueeze(0)), dim=0)
+                hiddens = (hids, cells)
+            else:
+                gplstm_hids1 = [hidden[0][0, :, :], hidden[1][0, :, :]]
+                gplstm_hids2 = [hidden[0][1:, :, :].squeeze(0), hidden[1][1:, :, :].squeeze(0)]
+
+                gplstm_oup, gplstm_hids1 = self.rnn[0](inputs, gplstm_hids1)
+                outputs, gplstm_hids = self.rnn[1](gplstm_oup, gplstm_hids2)
+                hids = torch.cat((gplstm_hids1[0].unsqueeze(0), gplstm_hids[0].unsqueeze(0)), dim=0)
+                cells = torch.cat((gplstm_hids1[1].unsqueeze(0), gplstm_hids[1].unsqueeze(0)), dim=0)
+                hiddens = (hids, cells)
+                pass
         else:
             outputs, hiddens = self.rnn[0](inputs, hidden)
 
@@ -1392,7 +1688,7 @@ class GPLSTMCell(nn.Module):
             if self.gate_type == 3:
                 self.gpnn = GPNN(self.hidden_size+self.input_size, self.hidden_size, gpnn_type=gpnn_type)
             elif self.gate_type == 1 or self.gate_type == 4:
-                self.gpnn = GPNN(self.hidden_size+self.input_size, self.hidden_size, act_set=['sigmoid', 'tanh'], gpnn_type=gpnn_type)
+                self.gpnn = GPNN(self.hidden_size+self.input_size, self.hidden_size, act_set=['sigmoid', 'tanh', 'relu'], gpnn_type=gpnn_type)
             elif self.gate_type == 2:
                 self.gpnn = GPNN(self.hidden_size+self.input_size, self.hidden_size, act_set=['sigmoid'], gpnn_type=gpnn_type)
             elif self.gate_type == 5:
@@ -1500,6 +1796,7 @@ class GPNN(nn.Module):
         self.bias_mean = nn.Parameter(torch.Tensor(output_size))
         self.coef_mean = nn.Parameter(torch.Tensor(len(act_set), output_size))
         self.softmax = nn.Softmax(dim=0)
+        self.sample = False
 
         # Ugly
         if self.gpnn_type == 1:
@@ -1533,8 +1830,8 @@ class GPNN(nn.Module):
         stdv = 1. / math.sqrt(self.output_size)
         init.uniform_(self.weights_mean, -stdv, stdv)
         init.constant_(self.bias_mean, 0)  # Or can set to zero
-        #init.uniform_(self.coef_mean, 0, 1)
-        init.uniform_(self.coef_mean, -stdv, stdv)
+        init.uniform_(self.coef_mean, 0, 1)
+        #init.uniform_(self.coef_mean, -stdv, stdv)
         print(self.coef_mean.mean(dim=1))
         #init.constant_(self.coef_mean[1], 0)
         #init.constant_(self.coef_mean[2], 0)
@@ -1576,14 +1873,14 @@ class GPNN(nn.Module):
         if self.gpnn_type in [0, 2]:
             coef = self.coef_mean
         else:
-            coef = self.coef_mean + torch.exp(self.coef_lgstd) * self.coef_sample if self.training else self.coef_mean
+            coef = self.coef_mean + torch.exp(self.coef_lgstd) * self.coef_sample if self.training and self.sample else self.coef_mean
 
         if self.gpnn_type in [0, 1]:
             weights = self.weights_mean
             bias = self.bias_mean
         else:
-            weights = self.weights_mean + torch.exp(self.weights_lgstd) * self.weights_sample if self.training else self.weights_mean
-            bias = self.bias_mean + torch.exp(self.bias_lgstd) * self.bias_sample if self.training else self.bias_mean
+            weights = self.weights_mean + torch.exp(self.weights_lgstd) * self.weights_sample if self.training and self.sample else self.weights_mean
+            bias = self.bias_mean + torch.exp(self.bias_lgstd) * self.bias_sample if self.training and self.sample else self.bias_mean
 
         output = F.linear(inputs, weights, bias)
         #output = hx
@@ -1597,6 +1894,133 @@ class GPNN(nn.Module):
 #            act_outputs.append(getattr(F, act)(output))
 #            coef = torch.ones_like(coef)
             act_outputs.append(getattr(F, act)(output) * coef[i])
+
+#        output = torch.sigmoid(output)
+        output = torch.sum(torch.stack(act_outputs), 0)
+#        output = act_outputs[0]
+
+        return output
+
+    def __repr__(self):
+        return self.__class__.__name__\
+            + '(act_set=' + '+'.join(self.act_set)
+
+
+class GPNNNode(nn.Module):
+    '''
+    0. Deterministic Weights, Deterministic Coeffs
+    1. Determinsitic Weights, Bayesian Coeffs
+    2. Bayesian Weights, Deterministic Coeffs
+    3. Bayesian Weights, Bayesian Coeffs
+    '''
+    def __init__(self, input_size, output_size, act_set=['sigmoid', 'tanh', 'relu'], gpnn_type=0):
+        super(GPNNNode, self).__init__()
+        self.input_size = input_size
+        self.output_size = output_size
+        self.gpnn_type = gpnn_type
+        self.act_set = act_set
+        self.act_num = len(self.act_set)
+
+        # GPNN-0 setting
+        self.weights_mean = nn.Parameter(torch.Tensor(self.act_num*output_size, input_size))
+        self.bias_mean = nn.Parameter(torch.Tensor(self.act_num*output_size))
+        self.coef_mean = nn.Parameter(torch.Tensor(self.act_num, output_size))
+        self.softmax = nn.Softmax(dim=0)
+        self.sample = True
+
+        # Ugly
+        if self.gpnn_type == 1:
+            self.coef_lgstd = nn.Parameter(torch.Tensor(len(act_set), output_size))
+        elif self.gpnn_type == 2:
+            self.weights_lgstd = nn.Parameter(torch.Tensor(self.act_num*output_size, input_size))
+            self.bias_lgstd = nn.Parameter(torch.Tensor(self.act_num*output_size))
+        elif self.gpnn_type == 3:
+            self.coef_lgstd = nn.Parameter(torch.Tensor(len(act_set), output_size))
+            self.weights_lgstd = nn.Parameter(torch.Tensor(self.act_num*output_size, input_size))
+            self.bias_lgstd = nn.Parameter(torch.Tensor(self.act_num*output_size))
+
+        self.reset_parameters()
+        self.sample_parameters()
+
+    # Please Check this part
+    def kl_divergence(self, prior=None):
+        kl = 0
+        if prior == None:
+            if self.gpnn_type not in [0, 2]:
+                # This is the KL, please check if our previous code have any bugs?
+                kl += torch.mean(self.coef_mean ** 2 - self.coef_lgstd * 2. + torch.exp(self.coef_lgstd * 2) - 1) / 2.
+            if self.gpnn_type not in [0, 1]:
+                kl += torch.mean(
+                    self.weights_mean ** 2 - self.weights_lgstd * 2. + torch.exp(self.weights_lgstd * 2) - 1) / 2.
+                kl += torch.mean(self.bias_mean ** 2 - self.bias_lgstd * 2. + torch.exp(self.bias_lgstd * 2) - 1) / 2.
+        return kl
+
+    def reset_parameters(self):
+        #import pdb; pdb.set_trace()
+        stdv = 1. / math.sqrt(self.act_num*self.output_size)
+        stda = 1. / math.sqrt(self.act_num)
+        init.uniform_(self.weights_mean, -stdv, stdv)
+        init.constant_(self.bias_mean, 0)  # Or can set to zero
+        #init.uniform_(self.coef_mean, 0, 1)
+        #init.uniform_(self.coef_mean, -stdv, stdv)
+        init.uniform_(self.coef_mean, -stda, stda)
+        print(self.coef_mean.mean(dim=1))
+
+        if self.gpnn_type == 1:
+            #self.coef_lgstd.data = torch.std(self.coef_mean.data, dim=1).unsqueeze(-1)
+            init.uniform_(self.coef_lgstd, 2 * np.log(stda), 1 * np.log(stda))
+        elif self.gpnn_type == 2:
+            init.uniform_(self.weights_lgstd, 2 * np.log(stdv), 1 * np.log(stdv))
+            init.uniform_(self.bias_lgstd, 2 * np.log(stdv), 1 * np.log(stdv))
+        elif self.gpnn_type == 3:
+            #self.coef_lgstd.data = torch.std(self.coef_mean.data, dim=1).unsqueeze(-1)
+            init.uniform_(self.coef_lgstd, 2 * np.log(stda), 1 * np.log(stda))
+            init.uniform_(self.weights_lgstd, 2 * np.log(stdv), 1 * np.log(stdv))
+            init.uniform_(self.bias_lgstd, 2 * np.log(stdv), 1 * np.log(stdv))
+
+    def sample_parameters(self):
+        if self.gpnn_type not in [0, 2]:
+            self.coef_sample = torch.zeros(len(self.act_set), self.output_size, device=self.coef_lgstd.device).normal_()
+        if self.gpnn_type not in [0, 1]:
+            self.weights_sample = torch.zeros(self.act_num*self.output_size, self.input_size,
+                                              device=self.weights_lgstd.device).normal_()
+            self.bias_sample = torch.zeros(self.act_num*self.output_size, device=self.bias_lgstd.device).normal_()
+
+    def forward(self, inp, hx=None):
+        # XBY: hx=None for Transformer
+        #import pdb; pdb.set_trace()
+        self.device = next(self.parameters()).device
+        if hx is not None:
+            inputs = torch.cat([inp, hx], -1)
+        else:
+            inputs = inp
+
+        #import pdb; pdb.set_trace()
+        if self.gpnn_type in [0, 2]:
+            coef = self.coef_mean
+        else:
+            coef = self.coef_mean + torch.exp(self.coef_lgstd) * self.coef_sample if self.training else self.coef_mean
+
+        if self.gpnn_type in [0, 1]:
+            weights = self.weights_mean
+            bias = self.bias_mean
+        else:
+            weights = self.weights_mean + torch.exp(self.weights_lgstd) * self.weights_sample if self.training else self.weights_mean
+            bias = self.bias_mean + torch.exp(self.bias_lgstd) * self.bias_sample if self.training else self.bias_mean
+
+        output = F.linear(inputs, weights, bias)
+        #output = hx
+        #import pdb; pdb.set_trace()
+        #coef = self.softmax(coef)
+        #print(output.size())
+
+        act_outputs = []
+        #print(coef)
+        #import pdb; pdb.set_trace()
+        for i, act in enumerate(self.act_set):
+#            act_outputs.append(getattr(F, act)(output))
+#            coef = torch.ones_like(coef)
+            act_outputs.append(getattr(F, act)(output[:, i*self.output_size:(i+1)*self.output_size]) * coef[i])
 
 #        output = torch.sigmoid(output)
         output = torch.sum(torch.stack(act_outputs), 0)
@@ -1882,10 +2306,13 @@ class GaussTransformerModel(nn.Module):
                 self.transformerlayers.append(StandardTransformerEncoderLayer(ninp, nhead, nhid, dropout))
             pass
         else:
+            #self.transformerlayers.append(StandardTransformerEncoderLayer(ninp, nhead, nhid, dropout))
             self.transformerlayers.append(GaussTransformerEncoderLayer(ninp, nhead, nhid, dropout, gauss_pos))
-            for i in range(nlayers-1):
+#            self.transformerlayers.append(GaussTransformerEncoderLayer(ninp, nhead, nhid, dropout, gauss_pos))
+            for i in range(nlayers-2):
                 self.transformerlayers.append(StandardTransformerEncoderLayer(ninp, nhead, nhid, dropout))
             pass
+            self.transformerlayers.append(GaussTransformerEncoderLayer(ninp, nhead, nhid, dropout, gauss_pos))
         pass
 
         # encoder_layers = TransformerEncoderLayer(ninp, nhead, nhid, dropout,

@@ -17,14 +17,14 @@ ac_model=tdnn_with_fisher # with out fisher
 #nn_model=$pytorch_path/model.pt
 model_type=Transformer # LSTM, GRU or Transformer
 embedding_dim=512 # 512 for Transformer (to reproduce the perplexities and WERs above)
-hidden_dim=512 # 512 for Transformer
+hidden_dim=4096 # 512 for Transformer
 nlayers=6 # 6 for Transformer
 nhead=8 # for Transformer
 learning_rate=0.1 # 0.1 for Transformer
 seq_len=100
 uncertainty=Gaussian # none for baseline, options: Bayesian, Gaussian
 T_bayes_pos=FFN # bayes position, options:none, FFN, MHA, EMB
-T_gauss_pos=1 # 0: none, 1: FFN
+T_gauss_pos=1 # 0: d-weight, d-coef | 1: nd-weight, d-coef | 2: d-weight, nd-coef | 3: nd-weight, nd-coef
 prior_path=steps/pytorchnn/prior/transformer # load pretrained prior model
 prior=False # using pretrained model or not
 mark=marks # save_path disctinct to uncover
@@ -60,6 +60,8 @@ else
     decode_dir_suffix=pytorch-${model_type}-emb${embedding_dim}_hid${hidden_dim}_nly${nlayers}-${lmdata}-${dropout}-${uncertainty}-GP${T_gauss_pos}-pre${prior}-${mark}-itpr${itpr}-ib${inter_flag}-${inter_alpha}
     #data_dir=data/pytorchnn_ami/ami
 fi
+
+#data_dir=/project_bdda4/bdda/jhxu/swbd_wav/s5c/data/pytorchnn
 
 #mkdir -p $data_dir
 mkdir -p $pytorch_path
@@ -122,6 +124,7 @@ if [ $stage -le 2 ]; then
         --hidden_dim $hidden_dim \
         --nlayers $nlayers \
         --nhead $nhead \
+        --uncertainty $uncertainty \
         --T_bayes_pos $T_bayes_pos \
         --T_gauss_pos $T_gauss_pos \
         --interpolation_flag $inter_flag \
