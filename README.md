@@ -2,6 +2,43 @@
 
 Configuration: 
 
+## Bayesian Transformer LMs:
+
+Training steps for Bayesian Transformer:
+
+1. Pretrain a no variance Transformer model:
+```
+ bash run_nnlm_ami_tm_baseline.sh --uncertainty Bayesian --T_bayes_pos none --mark no
+```
+
+2.Copy the pretrained model to specific path:
+```
+ cp path/pretrained_model.pt steps/pytorchnn/prior/transformer/
+```
+
+3.Fine-tune the pretrained model:
+```
+ bash run_nnlm_ami_tm_baseline.sh --uncertainty Bayesian --T_bayes_pos FFN --learning_rate 0.001 --prior True --mark no
+```
+
+Lattice rescore:
+
+Noticed to replace oringinal by lmrescore_nbest_pytorchnn_cuda.sh.
+
+```
+ steps/pytorchnn/lmrescore_nbest_pytorchnn_cuda.sh
+```
+
+Replace other .sh files in specific paths as the number of nj is set to 5 in rescoring step if necessary.
+
+```
+ local/score_asclite.sh
+ bash data/pytorchnn_ami/rescore/exp/mdm8/tdnn_with_fisher/decode_dev/cat_lat.sh
+```
+
+
+## GPact LMs:
+
 for all langauge models, 
 
 set uncertainty = Gaussian;
