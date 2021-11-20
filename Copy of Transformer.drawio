@@ -1,6 +1,6 @@
-<mxfile host="app.diagrams.net" modified="2021-11-20T23:15:14.462Z" agent="5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/15.1 Safari/605.1.15" etag="6f-EiiJOFzRNTt5AJhrY" version="15.8.3" type="github">
+<mxfile host="app.diagrams.net" modified="2021-11-20T23:23:57.973Z" agent="5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/15.1 Safari/605.1.15" etag="M8jKPx0xcBb_dfb39Y5l" version="15.8.3" type="github">
   <diagram id="z0HHgGlnCuGLutk6PVgF" name="Page-1">
-    <mxGraphModel dx="4003" dy="2150" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="850" pageHeight="1100" math="1" shadow="0">
+    <mxGraphModel dx="2201" dy="921" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="850" pageHeight="1100" math="1" shadow="0">
       <root>
         <mxCell id="0" />
         <mxCell id="1" parent="0" />
@@ -282,8 +282,8 @@
         <mxCell id="PhNjC-8NwTjc71LjDs-Q-17" value="&lt;font style=&quot;font-size: 18px&quot;&gt;$$&amp;nbsp; &amp;nbsp; q({\boldsymbol \Theta_1})=\mathcal{N}({\boldsymbol \Theta_1}; {\boldsymbol\mu}, {\boldsymbol\sigma})$$&lt;/font&gt;" style="text;html=1;align=center;verticalAlign=middle;resizable=0;points=[];autosize=1;strokeColor=none;" vertex="1" parent="1">
           <mxGeometry x="910" y="509" width="900" height="20" as="geometry" />
         </mxCell>
-        <mxCell id="PhNjC-8NwTjc71LjDs-Q-18" value="&lt;font style=&quot;font-size: 18px&quot;&gt;$$ &amp;nbsp; &amp;nbsp; p_{\mathrm r}({\boldsymbol \Theta_1})=\mathcal{N}({\boldsymbol \Theta_1}; {\boldsymbol \mu}^{\mathrm r}, {\boldsymbol\sigma}^{\mathrm r})$$&lt;/font&gt;" style="text;html=1;align=center;verticalAlign=middle;resizable=0;points=[];autosize=1;strokeColor=none;" vertex="1" parent="1">
-          <mxGeometry x="995" y="509" width="1200" height="20" as="geometry" />
+        <mxCell id="PhNjC-8NwTjc71LjDs-Q-18" value="&lt;font style=&quot;font-size: 18px&quot;&gt;$$ &amp;nbsp; &amp;nbsp; p_{\mathrm r}({\boldsymbol \Theta_1})&lt;br&gt;=\mathcal{N}({\boldsymbol \Theta_1}; &lt;br&gt;{\boldsymbol \mu}^{\mathrm r},&lt;br&gt;&amp;nbsp;{\boldsymbol\sigma}^{\mathrm r})$$&lt;/font&gt;" style="text;html=1;align=center;verticalAlign=middle;resizable=0;points=[];autosize=1;strokeColor=none;" vertex="1" parent="1">
+          <mxGeometry x="1413.34" y="484" width="370" height="70" as="geometry" />
         </mxCell>
         <mxCell id="PhNjC-8NwTjc71LjDs-Q-19" value="$$&amp;nbsp; &amp;nbsp; \boldsymbol s^l_t =\boldsymbol \Theta_2 [\sum_j\lambda^j \phi^j({\boldsymbol \Theta}_{1} \left [{\boldsymbol x}_t^{l}, 1 \right ]^\top&amp;nbsp;),1]$$" style="text;html=1;align=center;verticalAlign=middle;resizable=0;points=[];autosize=1;strokeColor=none;fillColor=none;fontSize=18;" vertex="1" parent="1">
           <mxGeometry x="936.6700000000001" y="559" width="1140" height="30" as="geometry" />
