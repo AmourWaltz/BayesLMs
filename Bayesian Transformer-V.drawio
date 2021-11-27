@@ -1,6 +1,6 @@
-<mxfile host="app.diagrams.net" modified="2021-11-27T09:50:12.543Z" agent="5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/15.1 Safari/605.1.15" etag="8fvvmoONPOb7JeTPVkqH" version="15.8.6" type="github">
+<mxfile host="app.diagrams.net" modified="2021-11-27T15:38:25.020Z" agent="5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/15.1 Safari/605.1.15" etag="DyhTf_xCifZ-yb20BnyY" version="15.8.6" type="github">
   <diagram id="z0HHgGlnCuGLutk6PVgF" name="Page-1">
-    <mxGraphModel dx="1638" dy="538" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="850" pageHeight="1100" math="1" shadow="0">
+    <mxGraphModel dx="2201" dy="921" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="850" pageHeight="1100" math="1" shadow="0">
       <root>
         <mxCell id="0" />
         <mxCell id="1" parent="0" />
@@ -253,7 +253,7 @@
         <mxCell id="48QjJdg0xg1IaRhwslJF-16" value="&lt;font style=&quot;font-size: 16px&quot;&gt;Prior Network&lt;/font&gt;" style="text;html=1;align=center;verticalAlign=middle;resizable=0;points=[];autosize=1;strokeColor=none;fillColor=none;" parent="1" vertex="1">
           <mxGeometry x="-311.1400000000001" y="1542" width="110" height="20" as="geometry" />
         </mxCell>
-        <mxCell id="48QjJdg0xg1IaRhwslJF-17" value="&lt;font style=&quot;font-size: 16px&quot;&gt;$$\Phi^{&lt;br&gt;\mathrm {Infer}}&lt;br&gt;(\cdot)$$&lt;/font&gt;" style="text;html=1;align=center;verticalAlign=middle;resizable=0;points=[];autosize=1;strokeColor=none;fillColor=none;" parent="1" vertex="1">
+        <mxCell id="48QjJdg0xg1IaRhwslJF-17" value="&lt;font style=&quot;font-size: 17px&quot;&gt;$$\Phi^{&lt;br&gt;\mathrm {Infer}}&lt;br&gt;(\cdot)$$&lt;/font&gt;" style="text;html=1;align=center;verticalAlign=middle;resizable=0;points=[];autosize=1;strokeColor=none;fillColor=none;" parent="1" vertex="1">
           <mxGeometry x="-316.2500000000001" y="1394" width="130" height="50" as="geometry" />
         </mxCell>
         <mxCell id="48QjJdg0xg1IaRhwslJF-18" value="&lt;font style=&quot;font-size: 16px&quot;&gt;Inference Network&lt;/font&gt;" style="text;html=1;align=center;verticalAlign=middle;resizable=0;points=[];autosize=1;strokeColor=none;fillColor=none;" parent="1" vertex="1">
