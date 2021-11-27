@@ -1,4 +1,4 @@
-<mxfile host="app.diagrams.net" modified="2021-11-27T16:18:28.006Z" agent="5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/15.1 Safari/605.1.15" etag="kkoSsv8CRamnJri4mHzV" version="15.8.6" type="github">
+<mxfile host="app.diagrams.net" modified="2021-11-27T16:18:43.694Z" agent="5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/15.1 Safari/605.1.15" etag="AHY49j1C1EPFlSh22df1" version="15.8.6" type="github">
   <diagram id="DIHiUx33cXBpFIYKYFTg" name="Page-1">
     <mxGraphModel dx="1892" dy="1290" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="850" pageHeight="1100" math="1" shadow="0">
       <root>
@@ -186,7 +186,7 @@
           <mxGeometry x="490" y="656" width="220" height="20" as="geometry" />
         </mxCell>
         <mxCell id="o8n4G48uuksuD6SWjNvt-9" value="&lt;font style=&quot;font-size: 24px&quot;&gt;(d):&amp;nbsp;&lt;/font&gt;&lt;span style=&quot;font-size: 24px&quot;&gt;Variational LSTM-RNN LM&lt;/span&gt;" style="text;html=1;align=center;verticalAlign=middle;resizable=0;points=[];autosize=1;strokeColor=none;" parent="1" vertex="1">
-          <mxGeometry x="353.20999999999975" y="1793" width="340" height="20" as="geometry" />
+          <mxGeometry x="353.20999999999975" y="1796" width="340" height="20" as="geometry" />
         </mxCell>
         <mxCell id="lLRTrrkTzNn8y6LtSHST-32" value="&lt;font style=&quot;font-size: 16px&quot;&gt;$$\lambda_1\cdot\tanh(\boldsymbol\Theta_c[\cdot])$$&lt;/font&gt;" style="text;html=1;align=center;verticalAlign=middle;resizable=0;points=[];autosize=1;strokeColor=none;fillColor=none;fontSize=10;" parent="1" vertex="1">
           <mxGeometry x="472.5600000000002" y="1099.25" width="400" height="20" as="geometry" />
@@ -195,7 +195,7 @@
           <mxGeometry x="263.65000000000003" y="1144" width="220" height="40" as="geometry" />
         </mxCell>
         <mxCell id="lLRTrrkTzNn8y6LtSHST-118" value="&lt;font style=&quot;font-size: 24px&quot;&gt;&lt;font&gt;(c) GP&amp;nbsp;&lt;/font&gt;&lt;span style=&quot;font-family: &amp;#34;helvetica neue&amp;#34;&quot;&gt;LSTM-RNN LM&lt;/span&gt;&lt;/font&gt;" style="text;html=1;align=center;verticalAlign=middle;resizable=0;points=[];autosize=1;strokeColor=none;" parent="1" vertex="1">
-          <mxGeometry x="389.9999999999998" y="1380" width="260" height="20" as="geometry" />
+          <mxGeometry x="389.9999999999998" y="1370" width="260" height="20" as="geometry" />
         </mxCell>
         <mxCell id="lLRTrrkTzNn8y6LtSHST-121" value="&lt;font style=&quot;font-size: 24px&quot;&gt;&lt;font&gt;(b) Bayesian&amp;nbsp;&lt;/font&gt;&lt;span style=&quot;font-family: &amp;#34;helvetica neue&amp;#34;&quot;&gt;LSTM-RNN LM&lt;/span&gt;&lt;/font&gt;" style="text;html=1;align=center;verticalAlign=middle;resizable=0;points=[];autosize=1;strokeColor=none;" parent="1" vertex="1">
           <mxGeometry x="363.2099999999999" y="934" width="320" height="20" as="geometry" />
