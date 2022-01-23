@@ -1,4 +1,4 @@
-<mxfile host="app.diagrams.net" modified="2022-01-23T12:37:01.368Z" agent="5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/15.2 Safari/605.1.15" etag="SXuGVwJRxCxVHwc8ty8s" version="16.4.3" type="github">
+<mxfile host="app.diagrams.net" modified="2022-01-23T12:40:42.939Z" agent="5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/15.2 Safari/605.1.15" etag="aM33GSclFSDDYOIOAZcO" version="16.4.3" type="github">
   <diagram id="GkwxvoKI0v0egCr2lqlU" name="Page-1">
     <mxGraphModel dx="1577" dy="1075" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="850" pageHeight="1100" math="0" shadow="0">
       <root>
@@ -62,23 +62,11 @@
         <mxCell id="RtcgU3C-zt8aPHX_ZTjs-53" value="&amp;lt;/s&amp;gt;" style="text;html=1;align=center;verticalAlign=middle;resizable=0;points=[];autosize=1;strokeColor=none;fillColor=none;fontSize=18;" parent="1" vertex="1">
           <mxGeometry x="660" y="290" width="50" height="30" as="geometry" />
         </mxCell>
-        <mxCell id="RtcgU3C-zt8aPHX_ZTjs-55" value="&lt;font color=&quot;#ff0000&quot;&gt;1-best: &amp;lt;s&amp;gt; see the bed &amp;lt;/s&amp;gt;&lt;/font&gt;" style="text;html=1;align=center;verticalAlign=middle;resizable=0;points=[];autosize=1;strokeColor=none;fillColor=none;fontSize=18;" parent="1" vertex="1">
-          <mxGeometry x="640" y="1140" width="240" height="30" as="geometry" />
-        </mxCell>
-        <mxCell id="RtcgU3C-zt8aPHX_ZTjs-58" value="&lt;font face=&quot;Garamond&quot; style=&quot;font-size: 24px&quot;&gt;Lattice Rescoring using NNLMs&lt;/font&gt;" style="text;html=1;align=center;verticalAlign=middle;resizable=0;points=[];autosize=1;strokeColor=none;fillColor=none;fontSize=18;" parent="1" vertex="1">
-          <mxGeometry x="600" y="1080" width="330" height="30" as="geometry" />
-        </mxCell>
         <mxCell id="RtcgU3C-zt8aPHX_ZTjs-86" style="edgeStyle=none;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;exitX=1;exitY=0.5;exitDx=0;exitDy=0;fontSize=18;endArrow=none;endFill=0;dashed=1;" parent="1" edge="1">
           <mxGeometry relative="1" as="geometry">
             <mxPoint x="970.0000000000002" y="314.71" as="sourcePoint" />
             <mxPoint x="1010" y="314.71" as="targetPoint" />
           </mxGeometry>
-        </mxCell>
-        <mxCell id="RtcgU3C-zt8aPHX_ZTjs-114" value="&amp;lt;s&amp;gt; see the bed &amp;lt;/s&amp;gt; &amp;nbsp;&amp;lt;s&amp;gt; go to sleep &amp;lt;/s&amp;gt;" style="text;html=1;align=center;verticalAlign=middle;resizable=0;points=[];autosize=1;strokeColor=none;fillColor=none;fontSize=18;" parent="1" vertex="1">
-          <mxGeometry x="1160" y="1140" width="360" height="30" as="geometry" />
-        </mxCell>
-        <mxCell id="RtcgU3C-zt8aPHX_ZTjs-117" value="&lt;font face=&quot;Garamond&quot; style=&quot;font-size: 24px&quot;&gt;Lattice Rescoring using NNLMs&lt;/font&gt;" style="text;html=1;align=center;verticalAlign=middle;resizable=0;points=[];autosize=1;strokeColor=none;fillColor=none;fontSize=18;" parent="1" vertex="1">
-          <mxGeometry x="1185" y="1080" width="330" height="30" as="geometry" />
         </mxCell>
         <mxCell id="RtcgU3C-zt8aPHX_ZTjs-119" value="&lt;font color=&quot;#000000&quot; style=&quot;font-size: 23px&quot;&gt;&lt;font face=&quot;Verdana&quot;&gt;Utterance 1:&lt;br&gt;(Evaluated)&lt;/font&gt;&lt;br&gt;&lt;/font&gt;" style="text;html=1;align=center;verticalAlign=middle;resizable=0;points=[];autosize=1;strokeColor=none;fillColor=none;fontSize=30;fontFamily=Garamond;fontColor=#FF0000;" parent="1" vertex="1">
           <mxGeometry x="520" y="110" width="160" height="80" as="geometry" />
