@@ -5,12 +5,9 @@
 # This script trains an RNN (including LSTM and GRU) or Transformer-based language model with PyTorch and performs N-best rescoring
 stage=0
 gpu=1
-lmdata=ami+fisher # ami | ami+fisher | ami+fisher+swbd
 LM=ami_fsh.o3g.kn.pr1-7 # 4gram ami.o3g.kn.pr1-7
-mic=ihm
 #ac_model_dir=exp/chain/tdnn7q_sp
 #ac_model_dir=data/pytorchnn_ami/rescore/exp/$mic
-ac_model=tdnn_with_fisher # tdnnli_sp_bi # with out fisher
 #decode_dir_suffix=
 #pytorch_path=exp/pytorch_lstm_bz32_hdim1024_ami+fisher+swbd
 #pytorch_path=exp/pytorch_lstm_bz32_hdim1024_ami
@@ -25,13 +22,12 @@ seq_len=100
 uncertainty=Gaussian # none for baseline, options: Bayesian, Gaussian
 L_bayes_pos=0 # LSTM Bayesian position: [0: standard | 1: input_gate | 2: forget_gate | 3: cell_gate | 4: output_gate]
 L_gauss_pos=00 # LSTM Gaussian Activation position: [0: None | 1: input_gate | 2: forget_gate | 3: cell_gate | 4: output_gate | 5: cell | 6: hidden | 7: inputs]
-L_v_pos=00
 prior_path=steps/pytorchnn/prior/lstm # load pretrained prior model
 prior=False # load a pretrained model
 mark=marks # save_path disctinct to uncover
 inter_flag=0
 inter_alpha=0.8
-seed=1111
+L_v_pos=00
 
 ##################################################################################################
 dropout=0.2 # baseline 0.2 | bayesian initial 0.0
@@ -43,25 +39,24 @@ itpr=1.0
 
 set -e
 export CUDA_VISIBLE_DEVICES=$gpu
-ac_model_dir=data/pytorchnn_ami/rescore/exp/$mic
+ac_model_dir=exp/chain/lrs2/
 if [ "$uncertainty" == "Bayesian" ]; then
-	pytorch_path=exp/pytorch-${model_type}-emb${embedding_dim}_hid${hidden_dim}_nly${nlayers}-${lmdata}-${dropout}-${uncertainty}-${L_bayes_pos}-pre${prior}-${mark}
+	pytorch_path=lrs2/pytorch-${model_type}-emb${embedding_dim}_hid${hidden_dim}_nly${nlayers}-${dropout}-${uncertainty}-${L_bayes_pos}-pre${prior}-${mark}
 	nn_model=$pytorch_path/model.pt
-	data_dir=data/pytorchnn_ami/$lmdata
-	decode_dir_suffix=pytorch-${model_type}-emb${embedding_dim}_hid${hidden_dim}_nly${nlayers}-${lmdata}-${dropout}-${uncertainty}-${L_bayes_pos}-pre${prior}-${mark}-itpr${itpr}-ib${inter_flag}-${inter_alpha}
+	decode_dir_suffix=pytorch-${model_type}-emb${embedding_dim}_hid${hidden_dim}_nly${nlayers}-${dropout}-${uncertainty}-${L_bayes_pos}-pre${prior}-${mark}-itpr${itpr}-ib${inter_flag}-${inter_alpha}
 elif [ "$uncertainty" == "Gaussian" ]; then
-	pytorch_path=exp/pytorch-${model_type}-emb${embedding_dim}_hid${hidden_dim}_nly${nlayers}-${lmdata}-${dropout}-${uncertainty}-GP${L_gauss_pos}-pre${prior}-${mark}
+	pytorch_path=lrs2/pytorch-${model_type}-emb${embedding_dim}_hid${hidden_dim}_nly${nlayers}-${dropout}-${uncertainty}-GP${L_gauss_pos}-pre${prior}-${mark}
 	nn_model=$pytorch_path/model.pt
-	data_dir=data/pytorchnn_ami/$lmdata
-	decode_dir_suffix=pytorch-${model_type}-emb${embedding_dim}_hid${hidden_dim}_nly${nlayers}-${lmdata}-${dropout}-${uncertainty}-GP${L_gauss_pos}-pre${prior}-${mark}-itpr${itpr}-ib${inter_flag}-${inter_alpha}
+	decode_dir_suffix=pytorch-${model_type}-emb${embedding_dim}_hid${hidden_dim}_nly${nlayers}-${dropout}-${uncertainty}-GP${L_gauss_pos}-pre${prior}-${mark}-itpr${itpr}-ib${inter_flag}-${inter_alpha}
 else
-	pytorch_path=exp/pytorch-${model_type}-emb${embedding_dim}_hid${hidden_dim}_nly${nlayers}-${lmdata}-${dropout}-${uncertainty}-${L_v_pos}-pre${prior}-${mark}
+	pytorch_path=lrs2/pytorch-${model_type}-emb${embedding_dim}_hid${hidden_dim}_nly${nlayers}-${dropout}-${uncertainty}-${L_v_pos}-pre${prior}-${mark}
 	nn_model=$pytorch_path/model.pt
-	data_dir=data/pytorchnn_ami/$lmdata
 	#decode_dir_suffix=pytorch-${model_type}-emb${embedding_dim}_hid${hidden_dim}_nly${nlayers}-${lmdata}-${dropout}-${uncertainty}-${L_bayes_pos}-pre${prior}-${mark}-itpr${itpr}
-	decode_dir_suffix=pytorch-${model_type}-emb${embedding_dim}_hid${hidden_dim}_nly${nlayers}-${lmdata}-${dropout}-${uncertainty}-${L_v_pos}-pre${prior}-${mark}-itpr${itpr}-ib${inter_flag}-${inter_alpha}
+	decode_dir_suffix=pytorch-${model_type}-emb${embedding_dim}_hid${hidden_dim}_nly${nlayers}-${dropout}-${uncertainty}-${L_v_pos}-pre${prior}-${mark}-itpr${itpr}-ib${inter_flag}-${inter_alpha}
 	#data_dir=data/pytorchnn_ami/ami
 fi
+
+data_dir=data_lrs2/
 
 #mkdir -p $data_dir
 mkdir -p $pytorch_path
@@ -98,7 +93,6 @@ if [ $stage -le 1 ]; then
             --clip 1.0 \
             --batch-size 32 \
             --epoch 32 \
-            --seed $seed \
             --save $nn_model \
             --uncertainty $uncertainty \
             --L_bayes_pos $L_bayes_pos \
@@ -107,7 +101,6 @@ if [ $stage -le 1 ]; then
             --prior $prior \
             --prior_path $prior_path \
             --tied \
-            --mark $mark \
             --cuda > $pytorch_path/train.log
 fi
 
@@ -115,9 +108,9 @@ fi
 #LM=ami.o3g.kn.pr1-7
 if [ $stage -le 2 ]; then
   echo "$0: Perform nbest-rescoring on $ac_model_dir with a PyTorch trained $model_type LM."
-  for decode_set in eval dev; do
-      decode_dir=${ac_model_dir}/$ac_model/decode_${decode_set}
-      steps/pytorchnn/lmrescore_nbest_pytorchnn_cuda.sh \
+  for decode_set in clean_avsr TF MVDR FAS; do
+      decode_dir=${ac_model_dir}/decode_${decode_set}
+      steps/pytorchnn/lmrescore_nbest_pytorchnn_jwyu.sh \
         --stage 1 \
         --cmd "$decode_cmd --mem 4G" \
         --N 20 \
@@ -132,12 +125,12 @@ if [ $stage -le 2 ]; then
         --L_v_pos $L_v_pos \
         --interpolation_flag $inter_flag \
         --inter_alpha $inter_alpha \
-        $itpr data/pytorchnn_ami/rescore/lang_comb/lang_$LM $nn_model $data_dir/words.txt \
-        data/pytorchnn_ami/rescore/data/$mic/${decode_set}_hires ${decode_dir} \
+        $itpr data-lrs2-clean/lang/ $nn_model $data_dir/words.txt \
+        data-lrs2-clean/test/ ${decode_dir} \
         ${decode_dir}_${decode_dir_suffix}
   done
 fi
 exit 0
 
 #  for i in data/pytorchnn_ami/rescore/exp/ihm/tdnnli_sp_bi/ihm/decode_dev; do grep Sum $i/*sco*/*ys | ./utils/best_wer.sh ;done
-
+#cat exp/chain/lrs2//decode_clean_avsr/wer_* | ./utils/best_wer.sh

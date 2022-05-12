@@ -40,6 +40,7 @@ class Corpus(object):
             all_ids = []
             for line in f:
                 words = line.split() + ['<s>']
+                #print(words)
                 ids = []
                 for word in words:
                     if word in self.dictionary.word2idx:

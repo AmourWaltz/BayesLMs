@@ -341,6 +341,12 @@ def main():
     parser.add_argument('--T_gauss_pos', type=int, default=3,
                         help='Transformer Gaussian type: [0: d-weight, d-coef | 1: nd-weight, d-coef | 2: d-weight, nd-coef '
                              '| 3: nd-weight, nd-coef]')
+    parser.add_argument('--L_v_pos', type=str, default='11',
+                        help='LSTM Gaussian position: str[0] - 1-layer 0: None | 1: Vatiational'
+                             ' str[1] - 2-layer 0: None | 1: Vatiational')
+    parser.add_argument('--T_v_pos', type=int, default=0,
+                        help='LSTM Gaussian position: str[0] - 1-layer 0: None | 1: Vatiational'
+                             ' str[1] - 2-layer 0: None | 1: Vatiational')
 
     # interpolation
     parser.add_argument('--interpolation_flag', type=int, default=0,
@@ -369,8 +375,9 @@ def main():
         # The activation function can be 'relu' (default) or 'gelu'
         if args.uncertainty == 'none':
             model_1 = model.TransformerModel(ntokens, args.emsize, args.nhead, args.nhid,
-                                           args.nlayers, 0.5, "gelu", args.tied)
+                                           args.nlayers, 0.5, "gelu", True)
             print(model_1)
+            model_2 = None
         elif args.uncertainty == 'Bayesian':
             model_1 = model.BayesTransformerModel(ntokens, args.emsize, args.nhead, args.nhid,
                                                 args.nlayers, 0.5, True, args.T_bayes_pos)
@@ -391,11 +398,22 @@ def main():
                 print(model_2)
             else:
                 model_2 = None
+        elif args.uncertainty == 'Variational':
+            model_1 = model.VTransformerModel(ntokens, args.emsize, args.nhead, args.nhid,
+                                                args.nlayers, 0.5, True, args.T_v_pos)
+            print(model_1)
+            if args.interpolation_flag == 1:
+                model_2 = model.BayesTransformerModel(ntokens, args.emsize, args.nhead,
+                                                      args.nhid, args.nlayers, 0.5, True, 'none')
+                print(model_2)
+            else:
+                model_2 = None
     else:
         if args.uncertainty == 'none':
             model_1 = model.RNNModel(args.model, ntokens, args.emsize, args.nhid,
                                    args.nlayers, 0.5, True)
             print(model_1)
+            model_2 = None
         elif args.uncertainty == 'Bayesian':
             model_1 = model.BayesRNNModel(args.model, ntokens, args.emsize, args.nhid,
                                         args.nlayers, 0.5, True, args.L_bayes_pos)
@@ -417,6 +435,16 @@ def main():
             else:
                 model_2 = None
             pass
+        elif args.uncertainty == 'Variational':
+            model_1 = model.VariationalRNNModel(args.model, ntokens, args.emsize, args.nhid,
+                                        args.nlayers, 0.5, True, args.L_v_pos)
+            print(model_1)
+            if args.interpolation_flag == 1:
+                model_2 = model.BayesRNNModel(args.model, ntokens, args.emsize, args.nhid,
+                                              args.nlayers, 0.5, False, 0)
+                print(model_2)
+            else:
+                model_2 = None
         pass
     pass
 
@@ -446,7 +474,7 @@ def main():
     criterion = nn.CrossEntropyLoss()
     print("Load nbest list", args.nbest_list)
     nbest = load_nbest(args.nbest_list)
-    #nbest = load_swbd('/project_bdda3/bdda/byxue/s5c/s-swbd-test.txt')
+    #nbest = load_swbd('ami_test.txt')
     print("nbest length: ", len(nbest))
     #load nbest 
     #nbest = load_nbest(args.nbest_list)

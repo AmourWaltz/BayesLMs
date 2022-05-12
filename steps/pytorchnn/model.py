@@ -138,9 +138,9 @@ class TransformerModel(nn.Module):
         self.ninp = ninp
         self.decoder = nn.Linear(ninp, ntoken)
         if tie_weights:
-            if nhid != ninp:
-                raise ValueError('When using the tied flag, nhid must be equal '
-                                 'to emsize.')
+            # if nhid != ninp:
+            #     raise ValueError('When using the tied flag, nhid must be equal '
+            #                      'to emsize.')
             self.decoder.weight = self.encoder.weight
         self.init_weights()
 
@@ -189,7 +189,7 @@ class BayesRNNModel(nn.Module):
         self.encoder = nn.Embedding(ntoken, ninp)
         if rnn_type in ['LSTM', 'GRU']:
             #self.rnn = getattr(nn, rnn_type)(ninp, nhid, nlayers, dropout=dropout)
-            self.rnn = BayesLSTM(ninp, nhid, nlayers, position=bayes_pos, dropout=dropout)
+            self.rnn = Bayes2LSTM(ninp, nhid, nlayers, position=bayes_pos, dropout=dropout)
         else:
             try:
                 nonlinearity = {'RNN_TANH': 'tanh', 'RNN_RELU': 'relu'}[rnn_type]
@@ -1961,9 +1961,9 @@ class GPNNNode(nn.Module):
         stda = 1. / math.sqrt(self.act_num)
         init.uniform_(self.weights_mean, -stdv, stdv)
         init.constant_(self.bias_mean, 0)  # Or can set to zero
-        #init.uniform_(self.coef_mean, 0, 1)
+        init.uniform_(self.coef_mean, 0, 1)
         #init.uniform_(self.coef_mean, -stdv, stdv)
-        init.uniform_(self.coef_mean, -stda, stda)
+        #init.uniform_(self.coef_mean, -stda, stda)
         print(self.coef_mean.mean(dim=1))
 
         if self.gpnn_type == 1:
@@ -2306,13 +2306,10 @@ class GaussTransformerModel(nn.Module):
                 self.transformerlayers.append(StandardTransformerEncoderLayer(ninp, nhead, nhid, dropout))
             pass
         else:
-            #self.transformerlayers.append(StandardTransformerEncoderLayer(ninp, nhead, nhid, dropout))
             self.transformerlayers.append(GaussTransformerEncoderLayer(ninp, nhead, nhid, dropout, gauss_pos))
-#            self.transformerlayers.append(GaussTransformerEncoderLayer(ninp, nhead, nhid, dropout, gauss_pos))
-            for i in range(nlayers-2):
+            for i in range(nlayers-1):
                 self.transformerlayers.append(StandardTransformerEncoderLayer(ninp, nhead, nhid, dropout))
             pass
-            self.transformerlayers.append(GaussTransformerEncoderLayer(ninp, nhead, nhid, dropout, gauss_pos))
         pass
 
         # encoder_layers = TransformerEncoderLayer(ninp, nhead, nhid, dropout,
@@ -2366,4 +2363,513 @@ class GaussTransformerModel(nn.Module):
 
         return output
 
+
+
+'''
+Self build V-LSTM
+XBY 10.8
+'''
+
+class VariationalRNNModel(nn.Module):
+    """Container module with an encoder, a recurrent module, and a decoder."""
+    def __init__(self, rnn_type, ntoken, ninp, nhid, nlayers, dropout=0.5,
+                 tie_weights=False, v_pos='00'):
+        super(VariationalRNNModel, self).__init__()
+
+        self.rnn_type = rnn_type
+        self.nhid = nhid
+        self.nlayers = nlayers
+        self.drop = nn.Dropout(dropout)
+        self.encoder = nn.Embedding(ntoken, ninp)
+        if rnn_type in ['LSTM', 'GRU']:
+            self.rnn = VariationalLSTM(ninp, nhid, nlayers, dropout=dropout, vlstm_type=v_pos)
+#            self.rnn = VLSTM(ninp, nhid, nlayers, dropout=dropout, position=v_pos)
+        else:
+            try:
+                nonlinearity = {'RNN_TANH': 'tanh', 'RNN_RELU': 'relu'}[rnn_type]
+            except KeyError:
+                raise ValueError("""An invalid option for `--model` was supplied,
+                      options are ['LSTM', 'GRU', 'RNN_TANH' or 'RNN_RELU']""")
+            self.rnn = nn.RNN(ninp, nhid, nlayers, nonlinearity=nonlinearity,
+                              dropout=dropout)
+        self.decoder = nn.Linear(nhid, ntoken)
+
+        if tie_weights:
+            if nhid != ninp:
+                raise ValueError('When using the tied flag, nhid must be equal '
+                                 'to emsize.')
+            self.decoder.weight = self.encoder.weight
+
+        self.init_weights()
+
+    def init_weights(self):
+        initrange = 0.1
+        nn.init.uniform_(self.encoder.weight, -initrange, initrange)
+        nn.init.zeros_(self.decoder.bias)
+        nn.init.uniform_(self.decoder.weight, -initrange, initrange)
+
+    def forward(self, x, hidden):
+        emb = self.drop(self.encoder(x))
+        output, hidden = self.rnn(emb, hidden)
+        output = self.drop(output)
+        decoded = self.decoder(output)
+        return decoded, hidden
+
+    def init_hidden(self, bsz):
+        weight = next(self.parameters())
+        if self.rnn_type == 'LSTM':
+            return (weight.new_zeros(self.nlayers, bsz, self.nhid),
+                    weight.new_zeros(self.nlayers, bsz, self.nhid))
+        return weight.new_zeros(self.nlayers, bsz, self.nhid)
+
+
+class VariationalLSTM(nn.Module):
+    '''Variational LSTM.'''
+    def __init__(self, input_size, hidden_size, num_layers=1, bias=True, dropout=0., vlstm_type='00'):
+        super(VariationalLSTM, self).__init__()
+        self.input_size = input_size
+        self.hidden_size = hidden_size
+        self.bias = bias
+        self.num_layers = num_layers
+        self.dropout = float(dropout)
+        self.vlstm_type = vlstm_type
+        self.rnn = nn.ModuleList()
+        self.rnn.append(VLSTMCell(input_size, hidden_size, vnn_type=int(self.vlstm_type[0])))
+        self.rnn.append(VLSTMCell(input_size, hidden_size, vnn_type=int(self.vlstm_type[1])))
+#        if int(self.vlstm_type[0]) == 1 or int(self.vlstm_type[1]) == 1:
+#            self.rnn.append(VLSTMCell(input_size, hidden_size, vnn_type=int(self.vlstm_type[0])))
+#            self.rnn.append(VLSTMCell(input_size, hidden_size, vnn_type=int(self.vlstm_type[1])))
+#        else:
+#            self.rnn.append(nn.LSTM(input_size=hidden_size, hidden_size=hidden_size,
+#                                    num_layers=self.num_layers, dropout=self.dropout))
+#        pass
+
+    def forward(self, inputs, hidden=None):
+#        if int(self.vlstm_type[0]) == 1 or int(self.vlstm_type[1]) == 1:
+#            lstm_hids1 = [hidden[0][0, :, :], hidden[1][0, :, :]]
+#            lstm_hids2 = [hidden[0][1:, :, :].squeeze(0), hidden[1][1:, :, :].squeeze(0)]
+#
+#            lstm_oup, lstm_hids1 = self.rnn[0](inputs, lstm_hids1)
+#            outputs, lstm_hids = self.rnn[1](lstm_oup, lstm_hids2)
+#            hids = torch.cat((lstm_hids1[0].unsqueeze(0), lstm_hids[0].unsqueeze(0)), dim=0)
+#            cells = torch.cat((lstm_hids1[1].unsqueeze(0), lstm_hids[1].unsqueeze(0)), dim=0)
+#            hiddens = (hids, cells)
+#        else:
+#            outputs, hiddens = self.rnn[0](inputs, hidden)
+        gplstm_hids1 = [hidden[0][0, :, :], hidden[1][0, :, :]]
+        gplstm_hids2 = [hidden[0][1:, :, :].squeeze(0), hidden[1][1:, :, :].squeeze(0)]
+
+        gplstm_oup, gplstm_hids1 = self.rnn[0](inputs, gplstm_hids1)
+        outputs, gplstm_hids = self.rnn[1](gplstm_oup, gplstm_hids2)
+        hids = torch.cat((gplstm_hids1[0].unsqueeze(0), gplstm_hids[0].unsqueeze(0)), dim=0)
+        cells = torch.cat((gplstm_hids1[1].unsqueeze(0), gplstm_hids[1].unsqueeze(0)), dim=0)
+        hiddens = (hids, cells)
+
+        return outputs, hiddens
+
+
+class VLSTMCell(nn.Module):
+    def __init__(self, input_size, hidden_size, vnn_type=0):
+        super(VLSTMCell, self).__init__()
+        self.input_size = input_size
+        self.hidden_size = hidden_size
+        self.vnn_type = vnn_type
+        self.vnn = VNN(self.input_size)
+
+        self.weights_ih = nn.Parameter(torch.Tensor(self.hidden_size*4, self.input_size))
+        self.bias_ih = nn.Parameter(torch.Tensor(self.hidden_size*4))
+        self.weights_hh = nn.Parameter(torch.Tensor(self.hidden_size*4, self.hidden_size))
+        self.bias_hh = nn.Parameter(torch.Tensor(self.hidden_size*4))
+        self.reset_parameters()
+        #self._all_weights = [k for k, v in self.__dict__.items() if '_ih' in k or '_hh' in k]
+
+    def reset_parameters(self):
+        stdv = 1.0 / math.sqrt(self.hidden_size)
+        init.uniform_(self.weights_ih, -stdv, stdv)
+        init.uniform_(self.weights_hh, -stdv, stdv)
+        init.constant_(self.bias_ih, 0)
+        init.constant_(self.bias_hh, 0)
+
+    def forward(self, inputs, hid=None):
+        if inputs.dim() == 2:
+            inputs = inputs.unsqueeze(0)
+
+        batch_size = inputs.size(1)
+        outputs = None
+        # Generate initial hiddens and cells
+        if hid == None:
+            zeros = torch.zeros(batch_size, self.hidden_size, dtype=inputs.dtype, device=inputs.device)
+            hid = (zeros, zeros)
+        for i in range(inputs.size(0)):
+            inp = inputs[i, :, :]
+            hid = self.lstmcell(inp, hid)
+            if self.vnn_type == 1:
+                hid = self.vnn(hid)
+            # save the outputs
+            if outputs is None:
+                outputs = hid[0][:, :].unsqueeze(0)
+            else:
+                outputs = torch.cat((outputs, hid[0][:, :].unsqueeze(0)), dim=0)
+        return outputs, hid
+
+    def lstmcell(self, inp, hid):
+        hx, cx = hid
+        # print(inp.size(), hx.size())
+
+        gates = F.linear(inp, self.weights_ih, self.bias_ih) + F.linear(hx, self.weights_hh, self.bias_ih)
+        ingate, forgetgate, cellgate, outgate = gates.chunk(4, 1)
+
+        # Very ugly.
+        ingate = torch.sigmoid(ingate)
+        forgetgate = torch.sigmoid(forgetgate)
+        cellgate = torch.tanh(cellgate)
+        outgate = torch.sigmoid(outgate)
+
+        cx = (forgetgate * cx) + (ingate * cellgate)
+        hx = outgate * torch.tanh(cx)
+
+        return hx, cx
+
+
+class VNN(nn.Module):
+    def __init__(self, input_size):
+        super(VNN, self).__init__()
+        self.input_size = input_size
+        self.sample = True
+
+        # self.hidden_mean = nn.Parameter(torch.Tensor(output_size, input_size))
+        self.hidden_lgstd = nn.Parameter(torch.Tensor(1, input_size))
+        self.reset_parameters()
+
+    # Please Check this part
+    def kl_divergence(self, prior=None):
+        kl = 0
+        if prior == None:
+            kl += torch.mean(
+                self.hidden_mean ** 2 - self.hidden_lgstd * 2. + torch.exp(self.hidden_mean * 2) - 1) / 2.
+        return kl
+
+    def reset_parameters(self):
+        #import pdb; pdb.set_trace()
+        stdv = 1. / math.sqrt(self.input_size)
+        init.uniform_(self.hidden_lgstd, 2 * np.log(stdv), 1 * np.log(stdv))
+
+    def sample_weight_diff(self):
+        if self.training and self.sample:
+            #print("sample")
+            hidden_lgstd = torch.exp(self.hidden_lgstd)
+            epsilon = hidden_lgstd.new_zeros(*hidden_lgstd.size()).normal_(0, 0.1)
+            hidden_diff = epsilon*hidden_lgstd
+            return hidden_diff
+        #print("no-sample")
+        return 0.0
+
+    def forward(self, inputs):
+        # XBY: hx=None for Transformer
+        #import pdb; pdb.set_trace()
+        self.device = next(self.parameters()).device
+        # print(len(inputs))
+        self.hidden_mean = inputs[0][:, :]
+        cells = inputs[1][:, :]
+
+        #import pdb; pdb.set_trace()
+        output = self.hidden_mean + self.sample_weight_diff() \
+            if self.training and self.sample else self.hidden_mean
+
+        return (output, cells)
+
+
+class VLSTM(nn.Module):
+    def __init__(self, input_size, hidden_size, num_layers=1, dropout=0., position='00'):
+        super(VLSTM, self).__init__()
+        self.input_size = input_size
+        self.hidden_size = hidden_size
+        self.bias = True
+        self.num_layers = num_layers
+        self.dropout = float(dropout)
+        self.vlstm_type = position
+
+        # LSTM: input gate, forget gate, cell gate, output gate.
+        gate_size = 4 * hidden_size
+
+        self.weight_ih_mean_1 = nn.Parameter(torch.Tensor(gate_size, input_size))
+        self.weight_hh_mean_1 = nn.Parameter(torch.Tensor(gate_size, hidden_size))
+        self.bias_ih_mean_1 = nn.Parameter(torch.Tensor(gate_size))
+        # Second bias vector included for CuDNN compatibility. Only one
+        # bias vector is needed in standard definition.
+        self.bias_hh_mean_1 = nn.Parameter(torch.Tensor(gate_size))
+
+        self.weight_ih_mean_2 = nn.Parameter(torch.Tensor(gate_size, input_size))
+        self.weight_hh_mean_2 = nn.Parameter(torch.Tensor(gate_size, hidden_size))
+        self.bias_ih_mean_2 = nn.Parameter(torch.Tensor(gate_size))
+        # Second bias vector included for CuDNN compatibility. Only one
+        # bias vector is needed in standard definition.
+        self.bias_hh_mean_2 = nn.Parameter(torch.Tensor(gate_size))
+
+        if int(self.vlstm_type[0]) == 1 or int(self.vlstm_type[1]) == 1:
+            self.hiddens_lgstd = nn.Parameter(torch.Tensor(32, hidden_size))
+        pass
+
+        self._all_weights = [k for k, v in self.__dict__.items() if '_ih' in k or '_hh' in k]
+        self.reset_parameters()
+
+    def reset_parameters(self):
+        stdv = 1.0 / math.sqrt(self.hidden_size)
+        init.uniform_(self.weight_ih_mean_1, -stdv, stdv)
+        init.uniform_(self.weight_hh_mean_1, -stdv, stdv)
+        init.uniform_(self.bias_hh_mean_1, -stdv, stdv)
+        init.uniform_(self.bias_ih_mean_1, -stdv, stdv)
+
+        init.uniform_(self.weight_ih_mean_2, -stdv, stdv)
+        init.uniform_(self.weight_hh_mean_2, -stdv, stdv)
+        init.uniform_(self.bias_hh_mean_2, -stdv, stdv)
+        init.uniform_(self.bias_ih_mean_2, -stdv, stdv)
+
+        if int(self.vlstm_type[0]) == 1 or int(self.vlstm_type[1]) == 1:
+            init.uniform_(self.hiddens_lgstd, 2 * math.log(stdv), math.log(stdv))
+        pass
+
+    def sample_weight_diff(self):
+        if self.training:
+            hiddens_lgstd = torch.exp(self.hiddens_lgstd)
+            epsilon = hiddens_lgstd.new_zeros(*hiddens_lgstd.size()).normal_()
+            hiddens_diff = epsilon * hiddens_lgstd
+            return hiddens_diff
+        return 0
+
+    def flat_parameters(self):
+        weight_hh_1 = self.weight_hh_mean_1 * 1.
+        weight_ih_1 = self.weight_ih_mean_1 * 1.
+        bias_hh_1 = self.bias_hh_mean_1 * 1.
+        bias_ih_1 = self.bias_ih_mean_1 * 1.
+
+        weight_hh_2 = self.weight_hh_mean_2 * 1.
+        weight_ih_2 = self.weight_ih_mean_2 * 1.
+        bias_hh_2 = self.bias_hh_mean_2 * 1.
+        bias_ih_2 = self.bias_ih_mean_2 * 1.
+
+        return [weight_ih_1[:, :].contiguous(), weight_hh_1[:, :].contiguous(),
+                bias_ih_1[:].contiguous(), bias_hh_1[:].contiguous(),
+                weight_ih_2[:, :].contiguous(), weight_hh_2[:, :].contiguous(),
+                bias_ih_2[:].contiguous(), bias_hh_2[:].contiguous()]
+
+    def kl_divergence(self):
+        kl = 0
+
+        if int(self.vlstm_type[0]) == 1 or int(self.vlstm_type[1]) == 1:
+            kl += torch.mean(
+                self.hidden ** 2. - self.hiddens_lgstd * 2. + torch.exp(self.hiddens_lgstd * 2)) / 2.  # Max uses mean in orign
+        return kl
+
+    @staticmethod
+    def permute_hidden(hx, permutation):
+        if permutation is None:
+            return hx
+        return hx[0].index_select(1, permutation), hx[1].index_select(1, permutation)
+
+    def forward(self, inputs, hx=None):  # noqa: F811
+        orig_input = inputs
+        # xxx: isinstance check needs to be in conditional for TorchScript to compile
+        if isinstance(orig_input, PackedSequence):
+            inputs, batch_sizes, sorted_indices, unsorted_indices = inputs
+            max_batch_size = batch_sizes[0]
+            max_batch_size = int(max_batch_size)
+        else:
+            batch_sizes = None
+            max_batch_size = inputs.size(1)
+            sorted_indices = None
+            unsorted_indices = None
+
+        if hx is None:
+            zeros = torch.zeros(self.num_layers,
+                                max_batch_size, self.hidden_size,
+                                dtype=inputs.dtype, device=inputs.device)
+            hx = (zeros, zeros)
+            pass
+        else:
+            # Each batch of the hidden state should match the input sequence that
+            # the user believes he/she is passing in.
+            hx = self.permute_hidden(hx, sorted_indices)
+            pass
+        pass
+
+        # self.flatten_parameters()
+        # print(self.flat_parameters()[0].size())
+        if batch_sizes is None:
+            result = _rnn_impls['LSTM'](inputs, hx, self.flat_parameters(), self.bias, self.num_layers,
+                                        0., self.training, False, False)
+            pass
+        else:
+            result = _rnn_impls['LSTM'](inputs, batch_sizes, hx, self.flat_parameters(), self.bias,
+                                        self.num_layers, 0., self.training, False)
+            pass
+        pass
+
+        output = result[0]
+        hidden = result[1:]
+
+        if int(self.vlstm_type[0]) == 1 or int(self.vlstm_type[1]) == 1:
+            # print(output.size())
+            # print(self.sample_weight_diff().size())
+#            self.hidden = output
+            output += self.sample_weight_diff()
+        pass
+
+        # xxx: isinstance check needs to be in conditional for TorchScript to compile
+        if isinstance(orig_input, PackedSequence):
+            output_packed = PackedSequence(output, batch_sizes, sorted_indices, unsorted_indices)
+            return output_packed, self.permute_hidden(hidden, unsorted_indices)
+        else:
+            return output, self.permute_hidden(hidden, unsorted_indices)
+
+
+'''
+Self build Variational Transformer
+XBY 11.17: Variational Transformer
+'''
+
+class VTransformerEncoderLayer(nn.Module):
+    def __init__(self, d_model, nhead, dim_feedforward=2048, dropout=0.1):
+        super(VTransformerEncoderLayer, self).__init__()
+        self.self_attn = MultiheadAttention(d_model, nhead, dropout=dropout)
+
+        # FNN Part
+        self.linear1 = nn.Linear(d_model, dim_feedforward)
+        self.dropout = nn.Dropout(dropout)
+        self.linear2 = nn.Linear(dim_feedforward, d_model)
+
+        self.norm1 = nn.LayerNorm(d_model)
+        self.norm2 = nn.LayerNorm(d_model)
+        self.dropout1 = nn.Dropout(dropout)
+        self.dropout2 = nn.Dropout(dropout)
+
+        self.hiddens_lgstd = nn.Parameter(torch.rand(100, 1, d_model))
+
+        self.activation = nn.GELU()
+
+    def reset_parameters(self):
+        stdv = 1.0 / math.sqrt(self.d_model)
+        init.uniform_(self.hiddens_lgstd, 2 * math.log(stdv), math.log(stdv))
+
+    def kl_divergence(self):
+        kl = 0
+        if self.training and self.hidden.size()[0] == 100:
+            kl += torch.mean(
+                self.hidden ** 2. - self.hiddens_lgstd * 2. + torch.exp(self.hiddens_lgstd * 2)) / 2.  # Max uses mean in orign
+        return kl
+
+    def sample_weight_diff(self):
+        if self.training:
+            hiddens_lgstd = torch.exp(self.hiddens_lgstd)
+            epsilon = hiddens_lgstd.new_zeros(*hiddens_lgstd.size()).normal_(0, 0.1)
+            hiddens_diff = epsilon * hiddens_lgstd
+            return hiddens_diff
+        return 0
+
+    def forward(self, src, src_mask=None):
+        src2 = self.self_attn(src, src, src, attn_mask=src_mask)[0]
+        src = src + self.dropout1(src2)
+        src = self.norm1(src)
+
+        # Entering the Linear part
+        src2 = self.linear2(self.dropout(self.activation(self.linear1(src))))
+        self.hidden = src2
+        if self.training and src2.size()[0] == 100:
+            src2 += self.sample_weight_diff()
+
+        src = src + self.dropout2(src2)
+        src = self.norm2(src)
+        return src
+
+
+class VTransformerModel(nn.Module):
+    """Container module with an encoder, a transformer module, and a decoder."""
+
+    def __init__(self, ntoken, ninp, nhead, nhid, nlayers, dropout=0.5, tie_weights=False, v_pos=0):
+        super(VTransformerModel, self).__init__()
+        # try:
+        #     from torch.nn import TransformerEncoder, TransformerEncoderLayer
+        # except ImportError:
+        #     raise ImportError('TransformerEncoder module does not exist in '
+        #                       'PyTorch 1.1 or lower.')
+        self.model_type = 'Transformer'
+        self.src_mask = None
+        self.pos_encoder = PositionalEncoding(ninp, dropout)
+        self.transformerlayers = nn.ModuleList()
+        if v_pos == 0:
+            for i in range(nlayers):
+                self.transformerlayers.append(StandardTransformerEncoderLayer(ninp, nhead, nhid, dropout))
+            pass
+        elif v_pos == 1:
+            self.transformerlayers.append(VTransformerEncoderLayer(ninp, nhead, nhid, dropout))
+            for i in range(nlayers-1):
+                self.transformerlayers.append(StandardTransformerEncoderLayer(ninp, nhead, nhid, dropout))
+            pass
+        elif v_pos == 2:
+            self.transformerlayers.append(StandardTransformerEncoderLayer(ninp, nhead, nhid, dropout))
+            self.transformerlayers.append(VTransformerEncoderLayer(ninp, nhead, nhid, dropout))
+            for i in range(nlayers-3):
+                self.transformerlayers.append(StandardTransformerEncoderLayer(ninp, nhead, nhid, dropout))
+            pass
+        elif v_pos == 3:
+            self.transformerlayers.append(VTransformerEncoderLayer(ninp, nhead, nhid, dropout))
+            self.transformerlayers.append(VTransformerEncoderLayer(ninp, nhead, nhid, dropout))
+            for i in range(nlayers-3):
+                self.transformerlayers.append(StandardTransformerEncoderLayer(ninp, nhead, nhid, dropout))
+            pass
+        pass
+
+        # encoder_layers = TransformerEncoderLayer(ninp, nhead, nhid, dropout,
+        #                                          activation)
+        # self.transformer_encoder = TransformerEncoder(encoder_layers, nlayers)
+        self.encoder = nn.Embedding(ntoken, ninp)
+        self.ninp = ninp
+        self.decoder = nn.Linear(ninp, ntoken)
+
+        if tie_weights:
+            #if nhid != ninp:
+            #    raise ValueError('When using the tied flag, nhid must be equal '
+            #                     'to emsize.')
+            self.decoder.weight = self.encoder.weight
+        self.init_weights()
+
+    def _generate_square_subsequent_mask(self, sz):
+        mask = (torch.triu(torch.ones(sz, sz)) == 1).transpose(0, 1)
+        mask = mask.float().masked_fill(mask == 0, float('-inf')).masked_fill(
+                mask == 1, float(0.0))
+        return mask
+
+    def init_weights(self):
+        initrange = 0.1
+        nn.init.uniform_(self.encoder.weight, -initrange, initrange)
+        nn.init.zeros_(self.decoder.bias)
+        nn.init.uniform_(self.decoder.weight, -initrange, initrange)
+
+    def forward(self, src, has_mask=True):
+        # src.size(): (seq_length, batch_size)  e.g (100, 32)
+        # print("src.size(): ", src.size())
+        if has_mask:
+            device = src.device
+            if self.src_mask is None or self.src_mask.size(0) != len(src):
+                mask = self._generate_square_subsequent_mask(len(src)).to(device)
+                self.src_mask = mask
+        else:
+            self.src_mask = None
+        src = self.encoder(src) * math.sqrt(self.ninp)
+
+        src = self.pos_encoder(src)
+        # output = self.transformerlayers(src, self.src_mask)
+        output = src
+
+        # output.size(): (seq_length, batch_size, dim_model) e.g (100, 32, 512)
+        # print("output.size(): ", output.size())
+        for mod in self.transformerlayers:
+            # time_start = time.time()
+            output = mod(output, src_mask=self.src_mask)
+            # time_end = time.time()
+            # print("time:", time_end-time_start)
+
+        output = self.decoder(output)
+
+        return output
 

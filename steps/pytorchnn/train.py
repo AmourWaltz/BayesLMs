@@ -9,6 +9,7 @@ from __future__ import division
 from __future__ import print_function
 
 import argparse
+from sqlite3 import SQLITE_DROP_TEMP_TABLE
 import time
 import math
 import random
@@ -49,9 +50,16 @@ parser.add_argument('--L_gauss_pos', type=str, default='00',
                     help='LSTM Gaussian position: [str[0] - 0: None | 1: input_gate | 2: forget_gate | 3: cell_gate | 4: output_gate'
                          ' str[1] - 0: d-weight, d-coef | 1: nd-weight, d-coef | 2: d-weight, nd-coef '
                          '| 3: nd-weight, nd-coef')
+parser.add_argument('--L_v_pos', type=str, default='11',
+                    help='LSTM Gaussian position: str[0] - 1-layer 0: None | 1: Vatiational'
+                         ' str[1] - 2-layer 0: None | 1: Vatiational')
 parser.add_argument('--T_gauss_pos', type=int, default=3,
                     help='Transformer Gaussian type: [0: d-weight, d-coef | 1: nd-weight, d-coef | 2: d-weight, nd-coef '
                          '| 3: nd-weight, nd-coef]')
+parser.add_argument('--T_v_pos', type=int, default=0,
+                    help='Transformer Variational position')
+parser.add_argument('--mark', type=str, default='none',
+                    help='save_path disctinct to uncover')
 
 # Training options
 parser.add_argument('--lr', type=float, default=0.1,
@@ -137,6 +145,25 @@ print("valid set:", len(corpus.valid))
 print("test set:", len(corpus.test))
 print("num tokens:", len(corpus.dictionary))
 
+train_len = len(corpus.train)
+
+# Experiment of NNLMs on different data sizes.
+if args.mark == "base-0.5set":
+    pruning_train = int(train_len / 2)
+    pass
+elif args.mark == "base-0.25set":
+    pruning_train = int(train_len / 4)
+    pass
+elif args.mark == "base-0.1set":
+    pruning_train = int(train_len / 10)
+    pass
+elif args.mark == "base-0.05set":
+    pruning_train = int(train_len / 20)
+    pass
+else:
+    pruning_train = int(train_len)
+    pass
+
 def batchify(data, bsz, random_start_idx=False):
     # Work out how cleanly we can divide the dataset into bsz parts.
     nbatch = data.size(0) // bsz
@@ -153,7 +180,7 @@ def batchify(data, bsz, random_start_idx=False):
 
 
 eval_batch_size = 20
-train_data = batchify(corpus.train, args.batch_size)
+train_data = batchify(corpus.train[:pruning_train], args.batch_size)
 val_data = batchify(corpus.valid, eval_batch_size)
 test_data = batchify(corpus.test, eval_batch_size)
 
@@ -166,24 +193,34 @@ ntokens = len(corpus.dictionary)
 if args.model == 'Transformer':
     # The activation function can be 'relu' (default) or 'gelu'
     if args.uncertainty == 'none':
-        model = model.TransformerModel(ntokens, args.emsize, args.nhead, args.nhid,
+        model_2 = model.TransformerModel(ntokens, args.emsize, args.nhead, args.nhid,
                                        args.nlayers, args.dropout, "gelu", args.tied).to(device)
+        model = model.TransformerModel(ntokens, args.emsize, args.nhead, args.nhid,
+                                       args.nlayers, args.dropout, "gelu", args.tied).to(device)                    
     elif args.uncertainty == 'Bayesian':
         model = model.BayesTransformerModel(ntokens, args.emsize, args.nhead, args.nhid,
                                        args.nlayers, args.dropout, args.tied, args.T_bayes_pos).to(device)
     elif args.uncertainty == 'Gaussian':
         model = model.GaussTransformerModel(ntokens, args.emsize, args.nhead, args.nhid,
                                        args.nlayers, args.dropout, args.tied, args.T_gauss_pos).to(device)
+    elif args.uncertainty == 'Variational':
+        model = model.VTransformerModel(ntokens, args.emsize, args.nhead, args.nhid,
+                                       args.nlayers, args.dropout, args.tied, args.T_v_pos).to(device)
 else:
     if args.uncertainty == 'none':
+        model_2 = model.RNNModel(args.model, ntokens, args.emsize, args.nhid,
+                               args.nlayers, args.dropout, args.tied).to(device)    
         model = model.RNNModel(args.model, ntokens, args.emsize, args.nhid,
-                               args.nlayers, args.dropout, args.tied).to(device)
+                               args.nlayers, args.dropout, args.tied).to(device)      
     elif args.uncertainty == 'Bayesian':
         model = model.BayesRNNModel(args.model, ntokens, args.emsize, args.nhid,
                                 args.nlayers, args.dropout, args.tied, args.L_bayes_pos).to(device)
     elif args.uncertainty == 'Gaussian':
         model = model.GaussRNNModel(args.model, ntokens, args.emsize, args.nhid,
                                 args.nlayers, args.dropout, args.tied, args.L_gauss_pos).to(device)
+    elif args.uncertainty == 'Variational':
+        model = model.VariationalRNNModel(args.model, ntokens, args.emsize, args.nhid,
+                                    args.nlayers, args.dropout, args.tied, args.L_v_pos).to(device)
 pass
 
 total_params = sum(x.data.nelement() for x in model.parameters())
@@ -221,12 +258,31 @@ if args.prior == "True":
     model.load_state_dict(model_dict)
 
     if args.uncertainty == 'Bayesian' and args.model == 'Transformer':
-        with open(os.path.join(args.prior2_path, 'model.pt'), 'rb') as f:
+        with open(os.path.join(args.prior_path, 'model.pt'), 'rb') as f:
             prior2_dict = torch.load(f, map_location=lambda storage, loc: storage)
         pass
-#        print(prior2_dict)
-
+        print(prior2_dict)
 pass
+
+###############################################################################
+# Maximum A Posteriori training with the same prior from baseline models
+###############################################################################
+
+# prior = []
+# with open(os.path.join(args.prior_path, 'model.pt'), 'rb') as f:
+#     prior2_dict = torch.load(f, map_location=lambda storage, loc: storage)
+#     pass
+
+# model_dict = model_2.state_dict()
+# prior2_dict =  {k: v for k, v in prior2_dict.items() if k in model_dict}
+# model_dict.update(prior2_dict)
+# model_2.load_state_dict(model_dict)
+
+# for k in model_2.parameters():
+#     # print(k)
+#     prior.append(k)
+#     pass
+# pass
 
 #############################
 # Training part
@@ -284,6 +340,7 @@ def train():
             elif args.model == 'Transformer':
                 if args.T_bayes_pos == 'FFN':
                     kl_loss += model.transformerlayers[0].linear2.kl_divergence() / len(train_data) * args.seq_len
+                    #kl_loss += model.transformerlayers[1].linear2.kl_divergence() / len(train_data) * args.seq_len
                     pass
                 elif args.T_bayes_pos == 'MHA':
                     kl_loss += model.transformerlayers[0].self_attn.o_net.kl_divergence() / len(train_data) * args.seq_len
@@ -302,8 +359,9 @@ def train():
             if args.model == 'Transformer':
                 if 1 <= args.T_gauss_pos <= 3:
                     kl_loss = model.transformerlayers[0].gpnn.kl_divergence() / len(train_data) * args.seq_len
-#                    kl_loss += model.transformerlayers[1].gpnn.kl_divergence() / len(train_data) * args.seq_len
-                    kl_loss += model.transformerlayers[5].gpnn.kl_divergence() / len(train_data) * args.seq_len
+                    #kl_loss += model.transformerlayers[1].gpnn.kl_divergence() / len(train_data) * args.seq_len
+                    #kl_loss += model.transformerlayers[4].gpnn.kl_divergence() / len(train_data) * args.seq_len
+                    #kl_loss += model.transformerlayers[5].gpnn.kl_divergence() / len(train_data) * args.seq_len
                     pass
             elif args.model == 'LSTM':
                 if int(args.L_gauss_pos[0]) > 0 and 0 < int(args.L_gauss_pos[1]) <= 3:
@@ -316,9 +374,42 @@ def train():
                         kl_loss += model.rnn.rnn[1].gpnn.kl_divergence() / len(train_data) * args.seq_len
                     pass
                 pass
+        elif args.uncertainty == 'Variational':
+            if args.model == 'LSTM':
+                if int(args.L_v_pos[0]) == 1:
+                    kl_loss += model.rnn.rnn[0].vnn.kl_divergence() / len(train_data) * args.seq_len
+                if int(args.L_v_pos[1]) == 1:
+                    kl_loss += model.rnn.rnn[1].vnn.kl_divergence() / len(train_data) * args.seq_len
+#                if int(args.L_v_pos[0]) == 1 or int(args.L_v_pos[1]) == 1:
+#                    kl_loss += model.rnn.kl_divergence() / len(train_data) * args.seq_len / len(train_data)
+                pass
+            else:
+                if int(args.T_v_pos) == 1:
+                    kl_loss += model.transformerlayers[0].kl_divergence() / len(train_data) * args.seq_len
+                    pass
+                elif int(args.T_v_pos) == 2:
+                    kl_loss += model.transformerlayers[1].kl_divergence() / len(train_data) * args.seq_len
+                    pass
+                elif int(args.T_v_pos) == 3:
+                    kl_loss += model.transformerlayers[0].kl_divergence() / len(train_data) * args.seq_len
+                    kl_loss += model.transformerlayers[1].kl_divergence() / len(train_data) * args.seq_len
+                    pass
+                pass
             pass
+        pass
 
-        loss = kl_loss + mle_loss
+        # L1 penalty.
+        # l1_loss = 0
+        # for param in model.parameters():
+        #     l1_loss += torch.sum(abs(param))
+
+        # map_loss = 0
+        # for i, param in enumerate(model.parameters()):
+        #     map_loss += torch.sum((param-prior[i])**2)
+        #     pass
+        # print(i)
+
+        loss = mle_loss + kl_loss
 #        backward_start = time.time()
         loss.backward()
 #        backward_time = time.time() - backward_start
@@ -392,7 +483,7 @@ try:
         if args.model == 'Transformer' and args.uncertainty == 'Gaussian' and args.T_gauss_pos <= 3:
             print(model_dict['transformerlayers.0.gpnn.coef_mean'].mean(dim=1))
 #            print(model_dict['transformerlayers.1.gpnn.coef_mean'].mean(dim=1))
-            print(model_dict['transformerlayers.5.gpnn.coef_mean'].mean(dim=1))
+#            print(model_dict['transformerlayers.5.gpnn.coef_mean'].mean(dim=1))
         elif args.model == 'LSTM' and args.uncertainty == 'Gaussian' and int(args.L_gauss_pos[1]) <= 3:
             if len(args.L_gauss_pos) < 3:
                 print(model_dict['rnn.rnn.0.gpnn.coef_mean'].mean(dim=1))
@@ -437,7 +528,7 @@ model_dict = model.state_dict()
 if args.model == 'Transformer' and args.uncertainty == 'Gaussian' and args.T_gauss_pos <= 3:
     print(model_dict['transformerlayers.0.gpnn.coef_mean'].mean(dim=1))
 #    print(model_dict['transformerlayers.1.gpnn.coef_mean'].mean(dim=1))
-    print(model_dict['transformerlayers.5.gpnn.coef_mean'].mean(dim=1))
+#    print(model_dict['transformerlayers.5.gpnn.coef_mean'].mean(dim=1))
 elif args.model == 'LSTM' and args.uncertainty == 'Gaussian' and int(args.L_gauss_pos[1]) <= 3:
     if len(args.L_gauss_pos) < 3:
         print(model_dict['rnn.rnn.0.gpnn.coef_mean'].mean(dim=1))

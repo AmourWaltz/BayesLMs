@@ -12,6 +12,15 @@ nlayers=2
 nhead=6
 inv_acwt=10
 cmd=run.pl
+uncertainty=Gaussian
+T_bayes_pos=FFN # bayes position, options:none, FFN, MHA, EMB
+L_bayes_pos=0 # LSTM Bayesian position: [0: standard | 1: input_gate | 2: forget_gate | 3: cell_gate | 4: output_gate]
+L_gauss_pos=0
+L_v_pos=00
+T_v_pos=0
+T_gauss_pos=0
+interpolation_flag=0
+inter_alpha=0.8
 use_phi=false  # This is kind of an obscure option.  If true, we'll remove the old
   # LM weights (times 1-RNN_scale) using a phi (failure) matcher, which is
   # appropriate if the old LM weights were added in this way, e.g. by
@@ -29,6 +38,7 @@ echo "$0 $*"  # Print the command line for logging
 [ -f ./path.sh ] && . ./path.sh
 . utils/parse_options.sh
 
+echo "$2"
 if [ $# != 7 ]; then
    echo "Do language model rescoring of lattices (partially remove old LM, add new LM)"
    echo "This version applies an neural LM and mixes it with the n-gram LM scores"
@@ -68,9 +78,12 @@ for f in $nn_model $vocabulary $indir/lat.1.gz; do
   [ ! -f $f ] && echo "$0: expected file $f to exist." && exit 1;
 done
 
-nj=$(cat $indir/num_jobs) || exit 1;
+nj=5
+#nj=$(cat $indir/num_jobs.new) || exit 1;
+#nj=$(cat $indir/num_jobs) || exit 1; # for ami without fisher
 mkdir -p $dir;
 cp $indir/num_jobs $dir/num_jobs
+cp $indir/num_jobs.new $dir/num_jobs.new
 
 adir=$dir/archives
 
@@ -84,12 +97,12 @@ mkdir -p $dir/log
 # to the one we'll finally get the best WERs with.
 # Note: the lattice-rmali part here is just because we don't
 # need the alignments for what we're doing.
-if [ $stage -le 1 ]; then
+if [ $stage -le 1 ]; then # lat.JOB.new.gz
   echo "$0: converting lattices to N-best lists."
   if $keep_ali; then
     $cmd JOB=1:$nj $dir/log/lat2nbest.JOB.log \
       lattice-to-nbest --acoustic-scale=$acwt --n=$N \
-      "ark:gunzip -c $indir/lat.JOB.gz|" \
+      "ark:gunzip -c $indir/lat.JOB.new.gz|" \
       "ark:|gzip -c >$dir/nbest1.JOB.gz" || exit 1;
   else
     $cmd JOB=1:$nj $dir/log/lat2nbest.JOB.log \
@@ -184,7 +197,7 @@ fi
 if [ $stage -le 6 ]; then
   echo "$0: invoking steps/pytorchnn/compute_sentence_scores.py which computes sentence scores with a PyTorch trained neural LM."
   $cmd JOB=1:$nj $dir/log/compute_sentence_scores_pytorchnn.JOB.log \
-    PYTHONPATH=steps/pytorchnn python steps/pytorchnn/compute_sentence_scores.py \
+    PYTHONPATH=steps/pytorchnn python steps/pytorchnn/compute_sentence_scores_bayes_jianwei.py \
         --nbest-list $adir.JOB/words_text \
         --outfile $adir.JOB/lmwt.nn \
         --vocabulary $vocabulary \
@@ -193,7 +206,16 @@ if [ $stage -le 6 ]; then
         --emsize $embedding_dim \
         --nhid $hidden_dim \
         --nlayers $nlayers \
-        --nhead $nhead
+        --nhead $nhead \
+        --uncertainty $uncertainty \
+        --L_bayes_pos $L_bayes_pos \
+        --T_bayes_pos $T_bayes_pos \
+        --L_v_pos $L_v_pos \
+        --T_v_pos $T_v_pos \
+        --L_gauss_pos $L_gauss_pos \
+        --T_gauss_pos $T_gauss_pos \
+        --interpolation_flag $interpolation_flag \
+        --inter_alpha $inter_alpha
 fi
 
 if [ $stage -le 7 ]; then
@@ -223,4 +245,3 @@ if ! $skip_scoring ; then
 fi
 
 exit 0;
-

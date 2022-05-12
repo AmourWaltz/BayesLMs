@@ -353,15 +353,8 @@ def train():
                       math.exp(cur_loss)))
             model_dict = model.arch_parameters()[0]
             model_dict = F.softmax(model_dict, dim=-1)
-            model_dict_2 = torch.zeros(model_dict.size()).to(model_dict.device)
             # model_dict
-            model_dict_2[1] = model_dict[1]
-            for i in range(4):
-                model_dict_2[0, i, 0] = model_dict[0, i, 1]
-                model_dict_2[0, i, 1] = model_dict[0, i, 0]
-
-            print(model_dict_2)
-
+            print(model_dict)
             total_loss = 0.
             start_time = time.time()
 
