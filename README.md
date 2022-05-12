@@ -2,7 +2,7 @@
 
 Configuration: 
 
-## Bayesian Transformer LMs:
+## Bayesian NNLMs:
 
 Training steps for Bayesian Transformer:
 
@@ -37,7 +37,7 @@ Replace other .sh files in specific paths as the number of nj is set to 5 in res
 ```
 
 
-## GPact LMs:
+## GP NNLMs:
 
 for all langauge models, 
 
@@ -69,7 +69,7 @@ Best settings for training Bayesian LSTM and Transformer language models, which 
 | LSTM        | 1024          | 1024       | 2       | 5 (fine-tune=0.1)     | 0.2     | False    | cell gate (L_bayes_pos=3, L_gauss_pos=31) |
 | Transformer | 512           | 4096       | 6       | 0.1 (fine-tune=0.001) | 0.2     | True     | FFN (T_bayes_pos=FFN, T_gauss_pos=3)      |
 
-Training steps for GPact LSTM:
+Training steps for GP LSTM:
 
 1.Pretrain a no variance LSTM (deterministic=True and no lgstd, not the baseline LSTM, only for GPact on cell gate), Parameter mark is to annotate the model with any value and know from other models if there's any change of the code:
 ```
