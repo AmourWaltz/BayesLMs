@@ -18,7 +18,7 @@ Training steps for Bayesian Transformer:
 
 3.Fine-tune the pretrained model:
 ```
- bash run_nnlm_ami_tm_baseline.sh --uncertainty Bayesian --T_bayes_pos FFN --learning_rate 0.001 --prior True --mark no
+ bash run_nnlm_ami_tm_baseline.sh --uncertainty Bayesian --T_bayes_pos FFN --learning_rate 0.01 --prior True --mark no
 ```
 
 Lattice rescore:
