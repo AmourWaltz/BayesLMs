@@ -98,8 +98,7 @@ if [ $stage -le 1 ]; then
             --T_bayes_pos $T_bayes_pos \
             --T_gauss_pos $T_gauss_pos \
             --tied \
-            --cuda
-#            --cuda > $pytorch_path/train.log
+            --cuda > $pytorch_path/train.log
 fi
 
 #LM=ami_fsh.o3g.kn.pr1-7 # Using the 4-gram const arpa file as old lm

@@ -464,7 +464,7 @@ def evaluate(source):
 lr = args.lr
 best_val_loss = None
 optimizer = optim.SGD(model.parameters(), lr=args.lr, momentum=0.9,
-                      weight_decay=1e-5)
+                      weight_decay=0)
 counter = 0
 print("Start training")
 try:
@@ -502,7 +502,7 @@ try:
         else:
             lr /= 2.
             optimizer = optim.SGD(model.parameters(), lr=lr, momentum=0.9,
-                                  weight_decay=1e-5)
+                                  weight_decay=0)
             with open(args.save, 'rb') as f:
                 model.load_state_dict(torch.load(f, map_location=lambda storage, loc: storage))
             counter += 1
