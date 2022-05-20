@@ -2608,6 +2608,9 @@ class VLSTM(nn.Module):
 
         if int(self.vlstm_type[0]) == 1 or int(self.vlstm_type[1]) == 1:
             self.hiddens_lgstd = nn.Parameter(torch.Tensor(32, hidden_size))
+            self.hiddens_mean = nn.Parameter(torch.Tensor(32, hidden_size))
+            self.hiddens_lgstd_p = nn.Parameter(torch.Tensor(32, hidden_size))
+            self.hiddens_mean_p = nn.Parameter(torch.Tensor(32, hidden_size))
         pass
 
         self._all_weights = [k for k, v in self.__dict__.items() if '_ih' in k or '_hh' in k]
@@ -2626,8 +2629,11 @@ class VLSTM(nn.Module):
         init.uniform_(self.bias_ih_mean_2, -stdv, stdv)
 
         if int(self.vlstm_type[0]) == 1 or int(self.vlstm_type[1]) == 1:
+            init.uniform_(self.hiddens_mean_p, -stdv, stdv)
+            init.uniform_(self.hiddens_lgstd_p, 2 * math.log(stdv), math.log(stdv))
+            init.uniform_(self.hiddens_mean, -stdv, stdv)
             init.uniform_(self.hiddens_lgstd, 2 * math.log(stdv), math.log(stdv))
-        pass
+
 
     def sample_weight_diff(self):
         if self.training:
@@ -2655,10 +2661,14 @@ class VLSTM(nn.Module):
 
     def kl_divergence(self):
         kl = 0
-
+        prior_mean = self.hidden * self.hiddens_mean_p
+        prior_var = self.hidden * self.hiddens_lgstd_p
+        
         if int(self.vlstm_type[0]) == 1 or int(self.vlstm_type[1]) == 1:
+            # kl += torch.mean(
+            #     self.hidden ** 2. - self.hiddens_lgstd * 2. + torch.exp(self.hiddens_lgstd * 2)) / 2.  # Max uses mean in orign
             kl += torch.mean(
-                self.hidden ** 2. - self.hiddens_lgstd * 2. + torch.exp(self.hiddens_lgstd * 2)) / 2.  # Max uses mean in orign
+                (self.hidden - prior_mean) ** 2. - self.hiddens_lgstd * 2. + torch.exp(self.hiddens_lgstd * 2)) / 2.
         return kl
 
     @staticmethod
@@ -2743,24 +2753,37 @@ class VTransformerEncoderLayer(nn.Module):
         self.dropout1 = nn.Dropout(dropout)
         self.dropout2 = nn.Dropout(dropout)
 
+        self.hiddens_mean_p = nn.Parameter(torch.rand(100, 1, d_model))
+        self.hiddens_lgstd_p = nn.Parameter(torch.rand(100, 1, d_model))
+        self.hiddens_mean = nn.Parameter(torch.rand(100, 1, d_model))
         self.hiddens_lgstd = nn.Parameter(torch.rand(100, 1, d_model))
 
         self.activation = nn.GELU()
 
     def reset_parameters(self):
         stdv = 1.0 / math.sqrt(self.d_model)
+        init.uniform_(self.hiddens_mean_p, -stdv, stdv)
+        init.uniform_(self.hiddens_lgstd_p, 2 * math.log(stdv), math.log(stdv))
+        init.uniform_(self.hiddens_mean, -stdv, stdv)
         init.uniform_(self.hiddens_lgstd, 2 * math.log(stdv), math.log(stdv))
 
     def kl_divergence(self):
         kl = 0
+        prior_mean = self.hidden * self.hiddens_mean_p
+        prior_var = self.hidden * self.hiddens_lgstd_p
+
         if self.training and self.hidden.size()[0] == 100:
+            # kl += torch.mean(
+            #     self.hidden ** 2. - self.hiddens_lgstd * 2. + torch.exp(self.hiddens_lgstd * 2)) / 2.  # Max uses mean in orignal
             kl += torch.mean(
-                self.hidden ** 2. - self.hiddens_lgstd * 2. + torch.exp(self.hiddens_lgstd * 2)) / 2.  # Max uses mean in orign
+                (self.hidden - prior_mean) ** 2. - self.hiddens_lgstd * 2. + torch.exp(self.hiddens_lgstd * 2)) / 2.  # Max uses mean in orignal
+            # kl += torch.sum((weight_mean - prior) ** 2. - weight_lgstd * 2. + torch.exp(weight_lgstd * 2)) / 2.
         return kl
 
     def sample_weight_diff(self):
         if self.training:
-            hiddens_lgstd = torch.exp(self.hiddens_lgstd)
+            hiddens_lgstd = torch.exp(self.hiddens * self.hiddens_lgstd)
+            # hiddens_lgstd = torch.exp(self.hiddens_lgstd)
             epsilon = hiddens_lgstd.new_zeros(*hiddens_lgstd.size()).normal_(0, 0.1)
             hiddens_diff = epsilon * hiddens_lgstd
             return hiddens_diff
