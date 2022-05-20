@@ -67,7 +67,7 @@ Best settings for training Bayesian LSTM and Transformer language models, which 
 |             | embedding_dim | hidden_dim | nlayers | learning_rate         | dropout | pretrain | Bayesian_pos                              |
 | ----------- | ------------- | ---------- | ------- | --------------------- | ------- | -------- | ----------------------------------------- |
 | LSTM        | 1024          | 1024       | 2       | 5 (fine-tune=0.1)     | 0.2     | False    | cell gate (L_bayes_pos=3, L_gauss_pos=31) |
-| Transformer | 512           | 4096       | 6       | 0.1 (fine-tune=0.001) | 0.2     | True     | FFN (T_bayes_pos=FFN, T_gauss_pos=3)      |
+| Transformer | 512           | 4096       | 6       | 0.1 (fine-tune=0.01) | 0.2     | True     | FFN (T_bayes_pos=FFN, T_gauss_pos=3)      |
 
 Training steps for GP LSTM:
 
@@ -101,7 +101,7 @@ Training steps for GPact Transformer:
 
 3.Fine-tune the pretrained model:
 ```
- bash run_nnlm_ami_tm_baseline.sh --T_gauss_pos 1 --learning_rate 0.001 --prior True --mark no
+ bash run_nnlm_ami_tm_baseline.sh --T_gauss_pos 1 --learning_rate 0.01 --prior True --mark no
 ```
 
 Lattice rescore:
