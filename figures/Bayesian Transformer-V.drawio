@@ -1,6 +1,6 @@
-<mxfile host="app.diagrams.net" modified="2022-05-19T07:08:54.872Z" agent="5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/15.4 Safari/605.1.15" etag="vYHRJ642ZtR8Jz2ALnaF" version="18.0.3" type="github">
+<mxfile host="app.diagrams.net" modified="2022-06-22T11:33:36.872Z" agent="5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/15.5 Safari/605.1.15" etag="FhQROfMGkIOnebTgJ-ZO" version="20.0.2" type="github">
   <diagram id="z0HHgGlnCuGLutk6PVgF" name="Page-1">
-    <mxGraphModel dx="2427" dy="1075" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="850" pageHeight="1100" math="1" shadow="0">
+    <mxGraphModel dx="2427" dy="1122" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="850" pageHeight="1100" math="1" shadow="0">
       <root>
         <mxCell id="0" />
         <mxCell id="1" parent="0" />
@@ -152,16 +152,18 @@
         <mxCell id="48QjJdg0xg1IaRhwslJF-1" value="" style="rounded=1;whiteSpace=wrap;html=1;fillColor=none;strokeColor=#FF0080;strokeWidth=2;dashed=1;" parent="1" vertex="1">
           <mxGeometry x="-36" y="290" width="126" height="40" as="geometry" />
         </mxCell>
-        <mxCell id="CTJLBTLDGU4M1NpmP4fn-75" style="edgeStyle=none;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;exitX=0.5;exitY=0;exitDx=0;exitDy=0;entryX=0.5;entryY=1;entryDx=0;entryDy=0;endArrow=openThin;endFill=0;strokeWidth=1.5;" parent="1" source="CTJLBTLDGU4M1NpmP4fn-62" target="CTJLBTLDGU4M1NpmP4fn-72" edge="1">
-          <mxGeometry relative="1" as="geometry" />
+        <mxCell id="CTJLBTLDGU4M1NpmP4fn-75" style="edgeStyle=none;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;entryX=0.5;entryY=1;entryDx=0;entryDy=0;endArrow=openThin;endFill=0;strokeWidth=1.5;exitX=0.5;exitY=0;exitDx=0;exitDy=0;" parent="1" source="CTJLBTLDGU4M1NpmP4fn-62" target="CTJLBTLDGU4M1NpmP4fn-72" edge="1">
+          <mxGeometry relative="1" as="geometry">
+            <mxPoint x="-490" y="430" as="sourcePoint" />
+          </mxGeometry>
         </mxCell>
         <mxCell id="CTJLBTLDGU4M1NpmP4fn-62" value="&lt;font style=&quot;font-size: 15px&quot;&gt;Word Embedding&lt;/font&gt;" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;" parent="1" vertex="1">
-          <mxGeometry x="-561" y="435" width="131" height="30" as="geometry" />
+          <mxGeometry x="-556" y="435" width="131" height="30" as="geometry" />
         </mxCell>
         <mxCell id="CTJLBTLDGU4M1NpmP4fn-63" value="&lt;span style=&quot;font-size: 14px&quot;&gt;$$\boldsymbol \Theta_w$$&lt;/span&gt;" style="rounded=1;whiteSpace=wrap;html=1;strokeColor=#0066CC;" parent="1" vertex="1">
-          <mxGeometry x="-420" y="437.5" width="50" height="25" as="geometry" />
+          <mxGeometry x="-416" y="437.5" width="40" height="25" as="geometry" />
         </mxCell>
-        <mxCell id="CTJLBTLDGU4M1NpmP4fn-64" value="" style="endArrow=openThin;html=1;strokeWidth=1.5;entryX=0.5;entryY=1;entryDx=0;entryDy=0;endFill=0;" parent="1" edge="1">
+        <mxCell id="CTJLBTLDGU4M1NpmP4fn-64" value="" style="endArrow=openThin;html=1;strokeWidth=1.5;entryX=0.5;entryY=1;entryDx=0;entryDy=0;endFill=0;" parent="1" edge="1" target="CTJLBTLDGU4M1NpmP4fn-62">
           <mxGeometry width="50" height="50" relative="1" as="geometry">
             <mxPoint x="-490.0000000000002" y="495" as="sourcePoint" />
             <mxPoint x="-490.0000000000002" y="465" as="targetPoint" />
