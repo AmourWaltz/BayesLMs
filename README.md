@@ -146,7 +146,7 @@ N-best lists rescoring using the trained Bayesian NNLMs, for example, the Bayesi
 ```shell
  bash run_nnlm_ami_tm.sh --stage 2 --uncertainty Bayesian --T_bayes_pos FFN --prior True --mark no --inter_flag 1
 
- bash run_nnlm_ami_lstm.sh --uncertainty Bayesian --L_gauss_pos 6360 --prior True --mark no --inter_flag 1
+ bash run_nnlm_ami_lstm.sh --stage 2 --uncertainty Bayesian --L_gauss_pos 6360 --prior True --mark no --inter_flag 1
 ```
 
 &emsp;Note that "ratio" denotes the interpolation weights of n-gram LMs.
