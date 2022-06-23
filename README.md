@@ -46,7 +46,7 @@ Please run the following command and install the packages.
 
 &emsp;Practically, we can stop the training process in previous and fine-tune on the half-converged pretrained standard model as described in paper. Experimental results suggested that the model parameters initialized from the half-converged or fully converged pretrained standard models produced similar performance, while both marginally better than using random weights.
 
-1. For GP Transformer, we only need to change the values of some parameters and fine-tune in the same way as Bayesian Transformer:
+4. For GP Transformer, we only need to change the values of some parameters and fine-tune in the same way as Bayesian Transformer:
 ```shell
  # Pretrain a standard Transformer LM using our self-built Transformers.
  bash run_nnlm_ami_tm.sh --uncertainty Gaussian --T_gauss_pos 0 --mark no
