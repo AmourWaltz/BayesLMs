@@ -1,7 +1,5 @@
 # BayesLMs
 
-## Introduction:
-
 This repository contains the code for the paper "Bayesian Neural Network Language Modeling for Speech Recognition". The code is based on the Kaldi recipe and mainly implemented using PyTorch. A single GPU card is used for training. The detailed configurations and the training process for Bayesian LMs are presented as follows
 
 ## Prerequisite:
