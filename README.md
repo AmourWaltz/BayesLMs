@@ -16,7 +16,7 @@ Please run the following command and install the packages.
 ### Model Parameters
 
 |             | embedding_dim | hidden_dim | nlayers | learning_rate         | dropout  |
-| ----------- | ------------- | ---------- | ------- | --------------------- | ------- | -------- | ----------------------------------------- |
+| ----------- | ------------- | ---------- | ------- | --------------------- | ------- |
 | LSTM        | 1024          | 1024       | 2       | 5 (fine-tune=0.1)     | 0.2      |
 | Transformer | 512           | 4096       | 6       | 0.1 (fine-tune=0.01) | 0.2    |
 
