@@ -57,7 +57,7 @@ Please run the following command and install the packages.
  bash run_nnlm_ami_tm.sh --uncertainty Gaussian --T_gauss_pos 3 --learning_rate 0.01 --prior True --mark no
 ```
 
-&emsp;Different types that separately model the uncertainty over model parameters $ \theta $ and the coefficients of hidden neural activation functions $ \lambda $. We have compared the performance of several ways and finally choose to set "T_gauss_pos" to 3 in this work.
+&emsp;Different types that separately model the uncertainty over model parameters $ \theta $ and the coefficients of hidden neural activation functions &emsp;$ \lambda $. We have compared the performance of several ways and finally choose to set "T_gauss_pos" to 3 in this work.
 | $\lambda$ | $\theta$ | T_gauss_pos |
 | ------- | ------- | -------------- |
 | &times; | &times; | 0              |
