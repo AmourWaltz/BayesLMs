@@ -196,3 +196,20 @@ Change parameter *path* in `steps/pytorchnn/variance.py` by model path under `pa
 ```shell
 python steps/pytorch/variance.py
 ```
+
+## Citation
+
+If you are interested in this work, please kindly cite [our paper](https://ieeexplore.ieee.org/abstract/document/9874985):
+
+``` latex
+@ARTICLE{9874985,
+  author={Xue, Boyang and Hu, Shoukang and Xu, Junhao and Geng, Mengzhe and Liu, Xunying and Meng, Helen},
+  journal={IEEE/ACM Transactions on Audio, Speech, and Language Processing}, 
+  title={Bayesian Neural Network Language Modeling for Speech Recognition}, 
+  year={2022},
+  volume={30},
+  number={},
+  pages={2900-2917},
+  keywords={Bayes methods;Transformers;Uncertainty;Computational modeling;Artificial neural networks;Computer architecture;Task analysis;Bayesian learning;model uncertainty;neural architecture search;neural language models;speech recognition},
+  doi={10.1109/TASLP.2022.3203891}}
+```
